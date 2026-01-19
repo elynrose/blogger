@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useActionState, useEffect, useRef, useState } from 'react';
@@ -14,6 +15,7 @@ import { Label } from '../ui/label';
 import { useFirestore, useUser, addDocumentNonBlocking } from '@/firebase';
 import { collection, serverTimestamp } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -65,6 +67,26 @@ export function PostGeneratorTool() {
         });
     }
   }, [state, toast]);
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 256 * 1024) { // 256KB limit
+        toast({
+          variant: 'destructive',
+          title: 'Image too large',
+          description: 'Please upload an image smaller than 256KB.',
+        });
+        e.target.value = ''; // Reset file input
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImageUrl(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleSavePost = async () => {
     if (!user || !firestore || !generatedTitle || !generatedContent) {
@@ -188,8 +210,22 @@ export function PostGeneratorTool() {
                     <Input id="generatedTitle" value={generatedTitle} onChange={(e) => setGeneratedTitle(e.target.value)} className="text-xl h-auto p-2 mt-2 font-bold" />
                 </div>
                 <div>
-                    <Label htmlFor="imageUrl" className="text-lg">Featured Image URL</Label>
-                    <Input id="imageUrl" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://example.com/image.jpg" className="text-base mt-2" />
+                    <Label htmlFor="imageUpload" className="text-lg">Featured Image</Label>
+                    <Input
+                        id="imageUpload"
+                        type="file"
+                        accept="image/png, image/jpeg, image/webp"
+                        onChange={handleImageUpload}
+                        className="text-base mt-2"
+                    />
+                    <p className="text-sm text-muted-foreground mt-1">
+                        Upload an image from your computer (max 256KB).
+                    </p>
+                    {imageUrl && (
+                        <div className="mt-4 relative aspect-video w-full max-w-lg mx-auto border rounded-lg overflow-hidden">
+                            <Image src={imageUrl} alt="Featured image preview" fill className="object-cover" />
+                        </div>
+                    )}
                 </div>
                 <div>
                     <Label htmlFor="generatedContent" className="text-lg">Content</Label>

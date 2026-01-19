@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useDoc, useFirestore, updateDocumentNonBlocking, useMemoFirebase } from '@/firebase';
@@ -13,6 +14,7 @@ import { Loader, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import { Skeleton } from '@/components/ui/skeleton';
+import Image from 'next/image';
 
 export default function EditPostPage() {
     const router = useRouter();
@@ -42,6 +44,26 @@ export default function EditPostPage() {
             setImageUrl(post.imageUrl || '');
         }
     }, [post]);
+    
+    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            if (file.size > 256 * 1024) { // 256KB limit
+                toast({
+                    variant: 'destructive',
+                    title: 'Image too large',
+                    description: 'Please upload an image smaller than 256KB.',
+                });
+                e.target.value = ''; // Reset file input
+                return;
+            }
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setImageUrl(reader.result as string);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
 
     const handleUpdatePost = () => {
         if (!postRef) return;
@@ -132,8 +154,22 @@ export default function EditPostPage() {
                         <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} className="mt-1" />
                     </div>
                     <div>
-                        <Label htmlFor="imageUrl" className="font-semibold">Featured Image URL</Label>
-                        <Input id="imageUrl" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://example.com/image.jpg" className="mt-1" />
+                        <Label htmlFor="imageUpload" className="font-semibold">Featured Image</Label>
+                        <Input
+                            id="imageUpload"
+                            type="file"
+                            accept="image/png, image/jpeg, image/webp"
+                            onChange={handleImageUpload}
+                            className="mt-1"
+                        />
+                        <p className="text-sm text-muted-foreground mt-1">
+                            Upload a new image to replace the current one (max 256KB).
+                        </p>
+                        {imageUrl && (
+                            <div className="mt-4 relative aspect-video w-full border rounded-lg overflow-hidden">
+                                <Image src={imageUrl} alt="Featured image preview" fill className="object-cover" />
+                            </div>
+                        )}
                     </div>
                     <div>
                         <Label htmlFor="content" className="font-semibold">Content (Markdown)</Label>
