@@ -1,0 +1,326 @@
+{
+  "entities": {
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents an administrative user of the AISaaS Explorer platform.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the user."
+        },
+        "username": {
+          "type": "string",
+          "description": "The user's username."
+        },
+        "email": {
+          "type": "string",
+          "description": "The user's email address.",
+          "format": "email"
+        },
+        "firstName": {
+          "type": "string",
+          "description": "The user's first name."
+        },
+        "lastName": {
+          "type": "string",
+          "description": "The user's last name."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the user account was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the user account was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "username",
+        "email",
+        "firstName",
+        "lastName",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Post": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Post",
+      "type": "object",
+      "description": "Represents a blog post about an AI SaaS product.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the post."
+        },
+        "title": {
+          "type": "string",
+          "description": "The title of the blog post."
+        },
+        "content": {
+          "type": "string",
+          "description": "The main content of the blog post, including text, images, and embedded videos."
+        },
+        "authorId": {
+          "type": "string",
+          "description": "Reference to the author of the post. (Relationship: User 1:N Post)"
+        },
+        "categoryId": {
+          "type": "string",
+          "description": "Reference to the category of the post. (Relationship: Category 1:N Post)"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the post was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the post was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "content",
+        "authorId",
+        "categoryId",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Category": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Category",
+      "type": "object",
+      "description": "Represents a category for blog posts.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the category."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the category."
+        },
+        "description": {
+          "type": "string",
+          "description": "A description of the category."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the category was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the category was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "AffiliateLink": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "AffiliateLink",
+      "type": "object",
+      "description": "Represents an affiliate link for an AI SaaS product.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the affiliate link."
+        },
+        "postId": {
+          "type": "string",
+          "description": "Reference to the post this affiliate link belongs to. (Relationship: Post 1:N AffiliateLink)"
+        },
+        "url": {
+          "type": "string",
+          "description": "The URL of the affiliate link.",
+          "format": "uri"
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the AI SaaS product."
+        },
+        "description": {
+          "type": "string",
+          "description": "A description of the AI SaaS product."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the affiliate link was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the affiliate link was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "postId",
+        "url",
+        "name",
+        "description",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "LinkClick": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "LinkClick",
+      "type": "object",
+      "description": "Represents a click on an affiliate link.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the link click."
+        },
+        "affiliateLinkId": {
+          "type": "string",
+          "description": "Reference to the affiliate link that was clicked. (Relationship: AffiliateLink 1:N LinkClick)"
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Timestamp indicating when the link was clicked.",
+          "format": "date-time"
+        },
+        "userIp": {
+          "type": "string",
+          "description": "The IP address of the user who clicked the link."
+        }
+      },
+      "required": [
+        "id",
+        "affiliateLinkId",
+        "timestamp",
+        "userIp"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores administrative user profiles. Only accessible to authenticated admins.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/roles_admin/{userId}",
+        "definition": {
+          "entityName": "AdminRole",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Collection to store admin user roles. The existence of a document with a user's ID grants admin privileges.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user who is an admin."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/categories/{categoryId}",
+        "definition": {
+          "entityName": "Category",
+          "schema": {
+            "$ref": "#/backend/entities/Category"
+          },
+          "description": "Stores categories for blog posts. Accessible only to authenticated admins.",
+          "params": [
+            {
+              "name": "categoryId",
+              "description": "The unique identifier of the category."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/posts/{postId}",
+        "definition": {
+          "entityName": "Post",
+          "schema": {
+            "$ref": "#/backend/entities/Post"
+          },
+          "description": "Stores blog posts. Accessible only to authenticated admins.",
+          "params": [
+            {
+              "name": "postId",
+              "description": "The unique identifier of the blog post."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/posts/{postId}/affiliateLinks/{affiliateLinkId}",
+        "definition": {
+          "entityName": "AffiliateLink",
+          "schema": {
+            "$ref": "#/backend/entities/AffiliateLink"
+          },
+          "description": "Stores affiliate links associated with a blog post. Accessible only to authenticated admins.",
+          "params": [
+            {
+              "name": "postId",
+              "description": "The unique identifier of the parent blog post."
+            },
+            {
+              "name": "affiliateLinkId",
+              "description": "The unique identifier of the affiliate link."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/linkClicks/{linkClickId}",
+        "definition": {
+          "entityName": "LinkClick",
+          "schema": {
+            "$ref": "#/backend/entities/LinkClick"
+          },
+          "description": "Stores click events for affiliate links. Publicly writeable, but read restricted for analysis purposes.",
+          "params": [
+            {
+              "name": "linkClickId",
+              "description": "The unique identifier of the link click event."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to manage blog posts, categories, affiliate links, and link click tracking for the AISaaS Explorer application. It emphasizes authorization independence, clarity, and scalability.  Authorization Independence is achieved via path-based ownership for posts and categories (accessible only to admins), and explicit collections for admin roles.  This eliminates the need for `get()` calls in security rules. Structural Segregation isolates data with different security postures (admin data vs. click tracking).  Access Modeling uses path-based ownership and existence-based global roles.  QAPs are supported by segregating user-generated content and admin-controlled data into separate collections."
+  }
+}
