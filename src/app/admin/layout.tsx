@@ -2,7 +2,7 @@
 
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Loader, ShieldAlert } from 'lucide-react';
 import { doc } from 'firebase/firestore';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
@@ -26,7 +26,6 @@ export default function AdminLayout({
 
   const { isLoading: isAdminCheckLoading, error: adminCheckError } = useDoc(adminCheckDocRef, { preventGlobalError: true });
   
-  const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -34,20 +33,13 @@ export default function AdminLayout({
     }
   }, [user, isUserLoading, router]);
 
-  useEffect(() => {
-    // Determine the final admin checking state.
-    // This runs after the initial user loading and the admin check loading completes.
-    if (!isUserLoading && !isAdminCheckLoading) {
-      setIsCheckingAdmin(false);
-    }
-  }, [isUserLoading, isAdminCheckLoading]);
 
   // The user is not an admin if the `useDoc` hook returns a permission error.
   const isPermissionError = adminCheckError && adminCheckError.name === 'FirebaseError';
   const isNotAdmin = !isAdminCheckLoading && isPermissionError;
 
 
-  if (isUserLoading || isCheckingAdmin) {
+  if (isUserLoading || (user && isAdminCheckLoading)) {
     return (
       <div className="flex h-screen items-center justify-center">
         <Loader className="h-8 w-8 animate-spin" />
