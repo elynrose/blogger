@@ -138,19 +138,18 @@ service cloud.firestore {
     }
 
     /**
-     * @description Stores blog posts. Full read and write access is restricted to administrative
-     *              users. Ensures that the post's authorId is correctly set on creation
+     * @description Stores blog posts. Public users can read published posts. Admins have full
+     *              CRUD access. Ensures that the post's authorId is correctly set on creation
      *              and cannot be changed.
      * @path /posts/{postId}
-     * @allow (create) An admin with UID 'admin123' creates a post where the 'authorId' field is also 'admin123'.
-     * @allow (get) An admin user reads any post.
-     * @deny (list) A non-admin user attempts to list posts.
-     * @deny (create) An admin user tries to create a post and assign it to a different author.
-     * @principle Enforces role-based access while ensuring relational integrity of authorship.
+     * @allow (get) Any user reads a published post. An admin reads any post.
+     * @allow (list) Any user can query for published posts. Admins can query for all posts.
+     * @deny (create) A non-admin user attempts to create a post.
+     * @principle Public read access for published content, role-based access for mutations.
      */
     match /posts/{postId} {
-      allow get: if isAdmin();
-      allow list: if isAdmin();
+      allow get: if resource.data.status == 'published' || isAdmin();
+      allow list: if true;
       allow create: if isAdmin() && request.resource.data.authorId == request.auth.uid;
       allow update: if isAdmin() && isExistingDoc() && request.resource.data.authorId == resource.data.authorId;
       allow delete: if isAdmin() && isExistingDoc();

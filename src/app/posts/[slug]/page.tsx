@@ -17,19 +17,13 @@ type PostDocument = {
     title: string;
     content: string;
     authorId: string;
+    authorName: string;
     imageUrl?: string;
     videoUrl?: string;
     publishDate?: Timestamp;
     createdAt: Timestamp;
     affiliateLinks?: AffiliateLink[];
 };
-
-type UserDocument = {
-    id: string;
-    username: string;
-    firstName?: string;
-    lastName?: string;
-}
 
 // This component replaces the old logic for rendering affiliate links.
 const ParsedContent = ({ content, affiliateLinks }: { content: string; affiliateLinks?: AffiliateLink[] }) => {
@@ -72,20 +66,13 @@ export default function PostPage() {
 
     const { data: post, isLoading: isPostLoading, error: postError } = useDoc<PostDocument>(postRef);
 
-    const authorRef = useMemoFirebase(() => {
-        if (!firestore || !post?.authorId) return null;
-        return doc(firestore, 'users', post.authorId);
-    }, [firestore, post?.authorId]);
-
-    const { data: author, isLoading: isAuthorLoading } = useDoc<UserDocument>(authorRef);
-
     useEffect(() => {
         if (post?.title) {
             document.title = `${post.title} | AISaaS Explorer`;
         }
     }, [post?.title]);
 
-    if (isPostLoading || isAuthorLoading) {
+    if (isPostLoading) {
         return (
             <div className="container mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-12">
                 <article>
@@ -111,7 +98,7 @@ export default function PostPage() {
         notFound();
     }
     
-    const authorName = author ? `${author.firstName || ''} ${author.lastName || author.username}`.trim() : 'AISaaS Explorer';
+    const authorName = post.authorName || 'AISaaS Explorer';
     const date = post.publishDate ? post.publishDate.toDate() : post.createdAt.toDate();
 
     return (

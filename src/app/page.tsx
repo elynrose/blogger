@@ -19,15 +19,7 @@ interface PostDocument {
   status: 'draft' | 'published';
   imageUrl?: string;
   authorId: string;
-}
-
-// Firestore user structure
-interface UserDocument {
-  id: string;
-  username: string;
-  firstName?: string;
-  lastName?: string;
-  // The user document doesn't have an image URL.
+  authorName: string;
 }
 
 function PostCardSkeleton() {
@@ -70,25 +62,12 @@ export default function Home() {
     );
   }, [firestore]);
 
-  const usersQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return collection(firestore, 'users');
-  }, [firestore]);
-
-  const { data: posts, isLoading: isLoadingPosts } = useCollection<PostDocument>(postsQuery);
-  const { data: users, isLoading: isLoadingUsers } = useCollection<UserDocument>(usersQuery);
-
-  const authors = useMemo(() => {
-    if (!users) return new Map();
-    return new Map(users.map(user => [user.id, user]));
-  }, [users]);
-
+  const { data: posts, isLoading } = useCollection<PostDocument>(postsQuery);
 
   const mappedPosts: BlogPost[] | null = useMemo(() => {
-    if (!posts || !authors || authors.size === 0) return null;
+    if (!posts) return null;
     return posts.map(post => {
-      const author = authors.get(post.authorId);
-      const authorName = author ? `${author.firstName || ''} ${author.lastName || author.username}`.trim() : 'AISaaS Explorer';
+      const authorName = post.authorName || 'AISaaS Explorer';
       const excerpt = post.content ? post.content.substring(0, 150) + '...' : '';
       const date = post.publishDate ? post.publishDate.toDate() : post.createdAt.toDate();
 
@@ -106,9 +85,8 @@ export default function Home() {
         content: post.content,
       };
     });
-  }, [posts, authors]);
+  }, [posts]);
   
-  const isLoading = isLoadingPosts || isLoadingUsers;
 
   return (
     <div className="container mx-auto px-4 sm:px-6 lg:px-8">

@@ -70,6 +70,10 @@
           "type": "string",
           "description": "Reference to the author of the post. (Relationship: User 1:N Post)"
         },
+        "authorName": {
+          "type": "string",
+          "description": "The name of the post's author, denormalized for performance."
+        },
         "categoryId": {
           "type": "string",
           "description": "Reference to the category of the post. (Relationship: Category 1:N Post)"
@@ -135,6 +139,7 @@
         "title",
         "content",
         "authorId",
+        "authorName",
         "categoryId",
         "status",
         "createdAt",

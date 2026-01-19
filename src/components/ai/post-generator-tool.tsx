@@ -11,8 +11,8 @@ import { Bot, Loader, Sparkles, Calendar as CalendarIcon, X as XIcon } from 'luc
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '../ui/skeleton';
 import { Label } from '../ui/label';
-import { useFirestore, useUser, addDocumentNonBlocking, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { useFirestore, useUser, addDocumentNonBlocking, useCollection, useMemoFirebase, useDoc } from '@/firebase';
+import { collection, serverTimestamp, Timestamp, doc } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import {
@@ -56,6 +56,8 @@ export function PostGeneratorTool() {
   const { user } = useUser();
   const firestore = useFirestore();
   const router = useRouter();
+
+  const { data: userProfile, isLoading: isUserProfileLoading } = useDoc(useMemoFirebase(() => (user && firestore ? doc(firestore, 'users', user.uid) : null), [firestore, user]));
 
   const categoriesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -113,11 +115,11 @@ export function PostGeneratorTool() {
   };
 
   const handleSavePost = async () => {
-    if (!user || !firestore || !generatedTitle || !generatedContent) {
+    if (!user || !firestore || !generatedTitle || !generatedContent || isUserProfileLoading) {
         toast({
             variant: 'destructive',
             title: 'Error',
-            description: 'Cannot save post. Make sure you are logged in and the post has a title and content.',
+            description: 'Cannot save post. Make sure you are logged in, the post has content, and user profile is loaded.',
         });
         return;
     }
@@ -129,12 +131,14 @@ export function PostGeneratorTool() {
     setIsSaving(true);
 
     const postsCollection = collection(firestore, 'posts');
+    const authorName = (userProfile ? `${userProfile.firstName || ''} ${userProfile.lastName || userProfile.username}`.trim() : user?.email) || 'AISaaS Explorer';
 
     addDocumentNonBlocking(postsCollection, {
         title: generatedTitle,
         content: generatedContent,
         imageUrl: imageUrl,
         authorId: user.uid,
+        authorName: authorName,
         status,
         categoryId,
         publishDate: publishDate ? Timestamp.fromDate(publishDate) : null,
@@ -368,7 +372,7 @@ export function PostGeneratorTool() {
 
             </CardContent>
             <CardFooter className="flex justify-end">
-                <Button onClick={handleSavePost} disabled={isSaving || isPending}>
+                <Button onClick={handleSavePost} disabled={isSaving || isPending || isUserProfileLoading}>
                   {isSaving ? (
                     <>
                       <Loader className="mr-2 h-4 w-4 animate-spin" />
