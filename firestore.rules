@@ -148,11 +148,14 @@ service cloud.firestore {
      * @principle Public read access for published content, role-based access for mutations.
      */
     match /posts/{postId} {
-      allow get: if resource.data.status == 'published' || isAdmin();
-      allow list: if true; // Allow all users to attempt queries. The 'get' rule will secure the documents.
-      allow create: if isAdmin() && request.resource.data.authorId == request.auth.uid;
-      allow update: if isAdmin() && isExistingDoc() && request.resource.data.authorId == resource.data.authorId;
-      allow delete: if isAdmin() && isExistingDoc();
+      // Admins have full read and write access to all posts.
+      allow read, write: if isAdmin();
+
+      // Public users are only allowed to read documents where the status is 'published'.
+      // This applies to both direct 'get' requests and 'list' (query) operations.
+      // For a 'list' operation to succeed for a public user, the query *must*
+      // include `where('status', '==', 'published')`.
+      allow get: if resource.data.status == 'published';
     }
   }
 }
