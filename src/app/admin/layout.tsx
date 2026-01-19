@@ -24,7 +24,7 @@ export default function AdminLayout({
     return doc(firestore, 'admin_check', user.uid);
   }, [firestore, user]);
 
-  const { isLoading: isAdminCheckLoading, error: adminCheckError } = useDoc(adminCheckDocRef);
+  const { isLoading: isAdminCheckLoading, error: adminCheckError } = useDoc(adminCheckDocRef, { preventGlobalError: true });
   
   const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
 

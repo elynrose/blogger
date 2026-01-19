@@ -36,16 +36,20 @@ export interface UseDocResult<T> {
  * @template T Optional type for document data. Defaults to any.
  * @param {DocumentReference<DocumentData> | null | undefined} docRef -
  * The Firestore DocumentReference. Waits if null/undefined.
+ * @param {object} [options] - Options for the hook.
+ * @param {boolean} [options.preventGlobalError] - If true, will not emit a global permission-error event.
  * @returns {UseDocResult<T>} Object with data, isLoading, error.
  */
 export function useDoc<T = any>(
   memoizedDocRef: DocumentReference<DocumentData> | null | undefined,
+  options?: { preventGlobalError?: boolean }
 ): UseDocResult<T> {
   type StateDataType = WithId<T> | null;
 
   const [data, setData] = useState<StateDataType>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<FirestoreError | Error | null>(null);
+  const preventGlobalError = options?.preventGlobalError;
 
   useEffect(() => {
     if (!memoizedDocRef) {
@@ -81,13 +85,15 @@ export function useDoc<T = any>(
         setData(null)
         setIsLoading(false)
 
-        // trigger global error propagation
-        errorEmitter.emit('permission-error', contextualError);
+        if (!preventGlobalError) {
+          // trigger global error propagation
+          errorEmitter.emit('permission-error', contextualError);
+        }
       }
     );
 
     return () => unsubscribe();
-  }, [memoizedDocRef]); // Re-run if the memoizedDocRef changes.
+  }, [memoizedDocRef, preventGlobalError]); // Re-run if the memoizedDocRef or preventGlobalError option changes.
 
   return { data, isLoading, error };
 }
