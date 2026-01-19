@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { MoreHorizontal, PlusCircle, Edit, Trash2 } from 'lucide-react';
 import { useCollection, useFirestore, useMemoFirebase, deleteDocumentNonBlocking } from '@/firebase';
@@ -33,6 +34,7 @@ interface Post {
     title: string;
     content: string;
     createdAt: Timestamp;
+    imageUrl?: string;
 }
 
 export default function AdminPostsPage() {
@@ -91,7 +93,17 @@ export default function AdminPostsPage() {
                 ))}
                 
                 {!isLoading && posts && posts.map((post) => (
-                    <Card key={post.id} className="flex flex-col">
+                    <Card key={post.id} className="flex flex-col overflow-hidden">
+                        {post.imageUrl && (
+                            <div className="relative h-40 w-full">
+                                <Image
+                                    src={post.imageUrl}
+                                    alt={post.title}
+                                    fill
+                                    className="object-cover"
+                                />
+                            </div>
+                        )}
                         <CardHeader>
                             <div className="flex justify-between items-start">
                                 <CardTitle className="line-clamp-2 pr-2">{post.title}</CardTitle>

@@ -74,6 +74,11 @@
           "type": "string",
           "description": "Reference to the category of the post. (Relationship: Category 1:N Post)"
         },
+        "imageUrl": {
+          "type": "string",
+          "description": "URL for the post's featured image.",
+          "format": "uri"
+        },
         "createdAt": {
           "type": "string",
           "description": "Timestamp indicating when the post was created.",

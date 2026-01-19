@@ -45,6 +45,7 @@ export function PostGeneratorTool() {
 
   const [generatedTitle, setGeneratedTitle] = useState('');
   const [generatedContent, setGeneratedContent] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -55,6 +56,7 @@ export function PostGeneratorTool() {
       });
       setGeneratedTitle(state.generatedPost.title);
       setGeneratedContent(state.generatedPost.content);
+      setImageUrl('');
     } else if (state?.message && state.message !== 'Success' && !state.errors) {
         toast({
             variant: "destructive",
@@ -81,6 +83,7 @@ export function PostGeneratorTool() {
     addDocumentNonBlocking(postsCollection, {
         title: generatedTitle,
         content: generatedContent,
+        imageUrl: imageUrl,
         authorId: user.uid,
         categoryId: 'general', // Placeholder category
         createdAt: serverTimestamp(),
@@ -183,6 +186,10 @@ export function PostGeneratorTool() {
                 <div>
                     <Label htmlFor="generatedTitle" className="text-lg">Title</Label>
                     <Input id="generatedTitle" value={generatedTitle} onChange={(e) => setGeneratedTitle(e.target.value)} className="text-xl h-auto p-2 mt-2 font-bold" />
+                </div>
+                <div>
+                    <Label htmlFor="imageUrl" className="text-lg">Featured Image URL</Label>
+                    <Input id="imageUrl" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://example.com/image.jpg" className="text-base mt-2" />
                 </div>
                 <div>
                     <Label htmlFor="generatedContent" className="text-lg">Content</Label>

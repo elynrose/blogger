@@ -32,12 +32,14 @@ export default function EditPostPage() {
 
     const [title, setTitle] = useState('');
     const [content, setContent] = useState('');
+    const [imageUrl, setImageUrl] = useState('');
     const [isSaving, setIsSaving] = useState(false);
 
     useEffect(() => {
         if (post) {
             setTitle(post.title);
             setContent(post.content);
+            setImageUrl(post.imageUrl || '');
         }
     }, [post]);
 
@@ -48,6 +50,7 @@ export default function EditPostPage() {
         updateDocumentNonBlocking(postRef, {
             title,
             content,
+            imageUrl,
             updatedAt: serverTimestamp(),
         });
 
@@ -66,6 +69,10 @@ export default function EditPostPage() {
                     </CardHeader>
                     <CardContent className="space-y-6">
                         <div className="space-y-2">
+                            <Skeleton className="h-5 w-16" />
+                            <Skeleton className="h-10 w-full" />
+                        </div>
+                         <div className="space-y-2">
                             <Skeleton className="h-5 w-16" />
                             <Skeleton className="h-10 w-full" />
                         </div>
@@ -123,6 +130,10 @@ export default function EditPostPage() {
                     <div>
                         <Label htmlFor="title" className="font-semibold">Title</Label>
                         <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} className="mt-1" />
+                    </div>
+                    <div>
+                        <Label htmlFor="imageUrl" className="font-semibold">Featured Image URL</Label>
+                        <Input id="imageUrl" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://example.com/image.jpg" className="mt-1" />
                     </div>
                     <div>
                         <Label htmlFor="content" className="font-semibold">Content (Markdown)</Label>
