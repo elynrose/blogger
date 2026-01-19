@@ -3,14 +3,12 @@
  * A dedicated `/roles_admin` collection serves as the single source of truth for identifying
  * administrative users. Only these designated admins are permitted to create, manage, and
  * view content like posts and categories. Standard users have very limited permissions,
- * primarily allowing them to create their own user profile and to write click-tracking
- * events.
+ * primarily allowing them to create their own user profile.
  *
  * Data Structure: The data is organized into several top-level collections: `/users`,
- * `/roles_admin`, `/categories`, `/posts`, and `/linkClicks`. This separation ensures
+ * `/roles_admin`, `/categories`, and `/posts`. This separation ensures
  * that data with different security requirements (e.g., admin-only content vs. publicly
- * writeable analytics) are isolated from each other. Posts can contain a subcollection
- * of `/affiliateLinks`.
+ * writeable analytics) are isolated from each other.
  *
  * Key Security Decisions:
  * - Admin Role Management: The `/roles_admin` collection is the cornerstone of the security
@@ -18,12 +16,9 @@
  *   To prevent unauthorized privilege escalation, this collection is made completely
  *   inaccessible from the client-side. Admin roles must be managed via a trusted
  *   server environment or the Firebase Console.
- * - Content Access: All primary content (`/posts`, `/categories`, and their subcollections)
+ * - Content Access: All primary content (`/posts`, `/categories`)
  *   is private and accessible only to admins for all operations (read and write). There
  *   is no public read access.
- * - "Dropbox" Collection: The `/linkClicks` collection is configured as a "dropbox". It is
- *   publicly writeable by anyone (including anonymous users) to allow for analytics
- *   tracking, but it is read-only for admins to prevent data tampering and ensure privacy.
  * - User Profile Security: Users are allowed to create their own profile document upon
  *   signing up and can read their own data. However, only admins are permitted to update
  *   or delete user profiles.
@@ -158,40 +153,6 @@ service cloud.firestore {
       allow list: if isAdmin();
       allow create: if isAdmin() && request.resource.data.authorId == request.auth.uid;
       allow update: if isAdmin() && isExistingDoc() && request.resource.data.authorId == resource.data.authorId;
-      allow delete: if isAdmin() && isExistingDoc();
-
-      /**
-       * @description Stores affiliate links associated with a blog post. Access is restricted
-       *              to administrative users only.
-       * @path /posts/{postId}/affiliateLinks/{affiliateLinkId}
-       * @allow (create) An admin user adds a new affiliate link to an existing post.
-       * @deny (get) A non-admin user attempts to read an affiliate link.
-       * @principle Inherits the parent document's role-based security model for subcollections.
-       */
-      match /affiliateLinks/{affiliateLinkId} {
-        allow get: if isAdmin();
-        allow list: if isAdmin();
-        allow create: if isAdmin() && request.resource.data.postId == postId;
-        allow update: if isAdmin() && isExistingDoc() && request.resource.data.postId == resource.data.postId;
-        allow delete: if isAdmin() && isExistingDoc();
-      }
-    }
-
-    /**
-     * @description Stores click events for affiliate links. This collection is publicly
-     *              writeable to allow tracking from any client, but read, update, and delete
-     *              operations are restricted to admins for data analysis and integrity.
-     * @path /linkClicks/{linkClickId}
-     * @allow (create) Any user, including anonymous users, creates a new link click document.
-     * @deny (get) A non-admin user attempts to read a click event.
-     * @deny (update) Any non-admin user attempts to modify an existing click event.
-     * @principle Implements a secure "dropbox" pattern where data can be submitted publicly but not viewed or altered.
-     */
-    match /linkClicks/{linkClickId} {
-      allow get: if isAdmin();
-      allow list: if isAdmin();
-      allow create: if true;
-      allow update: if isAdmin() && isExistingDoc();
       allow delete: if isAdmin() && isExistingDoc();
     }
   }

@@ -64,7 +64,7 @@
         },
         "content": {
           "type": "string",
-          "description": "The main content of the blog post, including text, images, and embedded videos."
+          "description": "The main content of the blog post, formatted in Markdown."
         },
         "authorId": {
           "type": "string",
@@ -76,8 +76,48 @@
         },
         "imageUrl": {
           "type": "string",
-          "description": "URL for the post's featured image.",
+          "description": "Data URI for the post's featured image.",
           "format": "uri"
+        },
+        "status": {
+          "type": "string",
+          "description": "The publishing status of the post.",
+          "enum": [
+            "draft",
+            "published"
+          ]
+        },
+        "publishDate": {
+          "type": "string",
+          "description": "The date and time when the post is scheduled to be published.",
+          "format": "date-time"
+        },
+        "videoUrl": {
+          "type": "string",
+          "description": "URL for an embedded video tutorial related to the post.",
+          "format": "uri"
+        },
+        "affiliateLinks": {
+          "type": "array",
+          "description": "A list of affiliate links related to the post.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "text": {
+                "type": "string",
+                "description": "The display text for the link."
+              },
+              "url": {
+                "type": "string",
+                "description": "The destination URL for the link.",
+                "format": "uri"
+              }
+            },
+            "required": [
+              "text",
+              "url"
+            ]
+          }
         },
         "createdAt": {
           "type": "string",
@@ -96,6 +136,7 @@
         "content",
         "authorId",
         "categoryId",
+        "status",
         "createdAt",
         "updatedAt"
       ]
@@ -135,85 +176,6 @@
         "description",
         "createdAt",
         "updatedAt"
-      ]
-    },
-    "AffiliateLink": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "AffiliateLink",
-      "type": "object",
-      "description": "Represents an affiliate link for an AI SaaS product.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the affiliate link."
-        },
-        "postId": {
-          "type": "string",
-          "description": "Reference to the post this affiliate link belongs to. (Relationship: Post 1:N AffiliateLink)"
-        },
-        "url": {
-          "type": "string",
-          "description": "The URL of the affiliate link.",
-          "format": "uri"
-        },
-        "name": {
-          "type": "string",
-          "description": "The name of the AI SaaS product."
-        },
-        "description": {
-          "type": "string",
-          "description": "A description of the AI SaaS product."
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp indicating when the affiliate link was created.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "Timestamp indicating when the affiliate link was last updated.",
-          "format": "date-time"
-        }
-      },
-      "required": [
-        "id",
-        "postId",
-        "url",
-        "name",
-        "description",
-        "createdAt",
-        "updatedAt"
-      ]
-    },
-    "LinkClick": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "LinkClick",
-      "type": "object",
-      "description": "Represents a click on an affiliate link.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the link click."
-        },
-        "affiliateLinkId": {
-          "type": "string",
-          "description": "Reference to the affiliate link that was clicked. (Relationship: AffiliateLink 1:N LinkClick)"
-        },
-        "timestamp": {
-          "type": "string",
-          "description": "Timestamp indicating when the link was clicked.",
-          "format": "date-time"
-        },
-        "userIp": {
-          "type": "string",
-          "description": "The IP address of the user who clicked the link."
-        }
-      },
-      "required": [
-        "id",
-        "affiliateLinkId",
-        "timestamp",
-        "userIp"
       ]
     }
   },
@@ -290,42 +252,6 @@
         }
       },
       {
-        "path": "/posts/{postId}/affiliateLinks/{affiliateLinkId}",
-        "definition": {
-          "entityName": "AffiliateLink",
-          "schema": {
-            "$ref": "#/backend/entities/AffiliateLink"
-          },
-          "description": "Stores affiliate links associated with a blog post. Accessible only to authenticated admins.",
-          "params": [
-            {
-              "name": "postId",
-              "description": "The unique identifier of the parent blog post."
-            },
-            {
-              "name": "affiliateLinkId",
-              "description": "The unique identifier of the affiliate link."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/linkClicks/{linkClickId}",
-        "definition": {
-          "entityName": "LinkClick",
-          "schema": {
-            "$ref": "#/backend/entities/LinkClick"
-          },
-          "description": "Stores click events for affiliate links. Publicly writeable, but read restricted for analysis purposes.",
-          "params": [
-            {
-              "name": "linkClickId",
-              "description": "The unique identifier of the link click event."
-            }
-          ]
-        }
-      },
-      {
         "path": "/admin_check/{userId}",
         "definition": {
           "entityName": "AdminCheck",
@@ -347,6 +273,6 @@
         }
       }
     ],
-    "reasoning": "The Firestore structure is designed to manage blog posts, categories, affiliate links, and link click tracking for the AISaaS Explorer application. It emphasizes authorization independence, clarity, and scalability.  Authorization Independence is achieved via path-based ownership for posts and categories (accessible only to admins), and explicit collections for admin roles.  This eliminates the need for `get()` calls in security rules. Structural Segregation isolates data with different security postures (admin data vs. click tracking).  Access Modeling uses path-based ownership and existence-based global roles.  QAPs are supported by segregating user-generated content and admin-controlled data into separate collections. A dedicated /admin_check collection is added to allow clients to securely verify admin status without exposing role data."
+    "reasoning": "The Firestore structure is designed to manage blog posts and categories for the AISaaS Explorer application. It emphasizes authorization independence, clarity, and scalability.  Authorization Independence is achieved via path-based ownership for posts and categories (accessible only to admins), and explicit collections for admin roles. This eliminates the need for `get()` calls in security rules. Structural Segregation isolates data with different security postures (admin data vs. other data).  Access Modeling uses path-based ownership and existence-based global roles.  QAPs are supported by segregating user-generated content and admin-controlled data into separate collections. A dedicated /admin_check collection is added to allow clients to securely verify admin status without exposing role data. Affiliate links are stored as an array within each post document to simplify data management."
   }
 }

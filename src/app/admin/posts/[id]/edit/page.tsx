@@ -1,8 +1,7 @@
-
 'use client';
 
-import { useDoc, useFirestore, updateDocumentNonBlocking, useMemoFirebase } from '@/firebase';
-import { doc, serverTimestamp } from 'firebase/firestore';
+import { useDoc, useFirestore, updateDocumentNonBlocking, useMemoFirebase, useCollection } from '@/firebase';
+import { doc, serverTimestamp, collection, Timestamp } from 'firebase/firestore';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -10,11 +9,24 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
-import { Loader, ArrowLeft } from 'lucide-react';
+import { Loader, ArrowLeft, Calendar as CalendarIcon, X as XIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import { Skeleton } from '@/components/ui/skeleton';
 import Image from 'next/image';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select"
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
+
+type AffiliateLink = { text: string; url: string; };
 
 export default function EditPostPage() {
     const router = useRouter();
@@ -31,10 +43,23 @@ export default function EditPostPage() {
     }, [firestore, postId]);
 
     const { data: post, isLoading: isPostLoading } = useDoc(postRef);
+    
+    const categoriesQuery = useMemoFirebase(() => {
+        if (!firestore) return null;
+        return collection(firestore, 'categories');
+    }, [firestore]);
+    const { data: categories, isLoading: areCategoriesLoading } = useCollection(categoriesQuery);
+
 
     const [title, setTitle] = useState('');
     const [content, setContent] = useState('');
     const [imageUrl, setImageUrl] = useState('');
+    const [status, setStatus] = useState<'draft' | 'published'>('draft');
+    const [categoryId, setCategoryId] = useState('');
+    const [publishDate, setPublishDate] = useState<Date | undefined>();
+    const [videoUrl, setVideoUrl] = useState('');
+    const [affiliateLinks, setAffiliateLinks] = useState<AffiliateLink[]>([]);
+    
     const [isSaving, setIsSaving] = useState(false);
 
     useEffect(() => {
@@ -42,6 +67,11 @@ export default function EditPostPage() {
             setTitle(post.title);
             setContent(post.content);
             setImageUrl(post.imageUrl || '');
+            setStatus(post.status || 'draft');
+            setCategoryId(post.categoryId || '');
+            setPublishDate(post.publishDate ? (post.publishDate as Timestamp).toDate() : undefined);
+            setVideoUrl(post.videoUrl || '');
+            setAffiliateLinks(post.affiliateLinks || []);
         }
     }, [post]);
     
@@ -73,6 +103,11 @@ export default function EditPostPage() {
             title,
             content,
             imageUrl,
+            status,
+            categoryId,
+            publishDate: publishDate ? Timestamp.fromDate(publishDate) : serverTimestamp(),
+            videoUrl,
+            affiliateLinks,
             updatedAt: serverTimestamp(),
         });
 
@@ -80,8 +115,23 @@ export default function EditPostPage() {
         setIsSaving(false);
         router.push('/admin/posts');
     };
+    
+    const handleAffiliateLinkChange = (index: number, field: 'text' | 'url', value: string) => {
+        const newLinks = [...affiliateLinks];
+        newLinks[index][field] = value;
+        setAffiliateLinks(newLinks);
+    };
 
-    if (isPostLoading) {
+    const addAffiliateLink = () => {
+        setAffiliateLinks([...affiliateLinks, { text: '', url: '' }]);
+    };
+
+    const removeAffiliateLink = (index: number) => {
+        setAffiliateLinks(affiliateLinks.filter((_, i) => i !== index));
+    };
+
+
+    if (isPostLoading || areCategoriesLoading) {
         return (
             <div className="container mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-12 space-y-8">
                 <Skeleton className="h-10 w-36" />
@@ -148,11 +198,66 @@ export default function EditPostPage() {
                 <CardHeader>
                     <CardTitle>Edit Post</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-6">
                     <div>
                         <Label htmlFor="title" className="font-semibold">Title</Label>
                         <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} className="mt-1" />
                     </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <Label htmlFor="status" className="font-semibold">Status</Label>
+                            <Select onValueChange={(value: 'draft' | 'published') => setStatus(value)} value={status}>
+                                <SelectTrigger className="mt-1">
+                                    <SelectValue placeholder="Select status" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="draft">Draft</SelectItem>
+                                    <SelectItem value="published">Published</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div>
+                            <Label htmlFor="category" className="font-semibold">Category</Label>
+                            <Select onValueChange={setCategoryId} value={categoryId}>
+                                <SelectTrigger className="mt-1">
+                                    <SelectValue placeholder="Select a category" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {categories?.map(cat => (
+                                        <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+
+                     <div>
+                        <Label htmlFor="publishDate" className="font-semibold block mb-1">Publish Date</Label>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button
+                                variant={"outline"}
+                                className={cn(
+                                    "w-[280px] justify-start text-left font-normal",
+                                    !publishDate && "text-muted-foreground"
+                                )}
+                                >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {publishDate ? format(publishDate, "PPP") : <span>Pick a date</span>}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                                <Calendar
+                                mode="single"
+                                selected={publishDate}
+                                onSelect={setPublishDate}
+                                initialFocus
+                                />
+                            </PopoverContent>
+                        </Popover>
+                    </div>
+
                     <div>
                         <Label htmlFor="imageUpload" className="font-semibold">Featured Image</Label>
                         <Input
@@ -175,6 +280,39 @@ export default function EditPostPage() {
                         <Label htmlFor="content" className="font-semibold">Content (Markdown)</Label>
                         <Textarea id="content" value={content} onChange={(e) => setContent(e.target.value)} rows={15} className="mt-1" />
                     </div>
+
+                    <div>
+                        <Label htmlFor="videoUrl" className="font-semibold">Video Embed URL</Label>
+                        <Input id="videoUrl" value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="e.g., https://www.youtube.com/watch?v=..." className="mt-1" />
+                    </div>
+
+                    <div>
+                        <Label className="font-semibold">Affiliate Links</Label>
+                         <div className="space-y-4 mt-2">
+                            {affiliateLinks.map((link, index) => (
+                                <div key={index} className="flex gap-2 items-center p-2 border rounded-md">
+                                    <div className="flex-grow space-y-2">
+                                        <Input
+                                            placeholder="Link Text"
+                                            value={link.text}
+                                            onChange={(e) => handleAffiliateLinkChange(index, 'text', e.target.value)}
+                                        />
+                                        <Input
+                                            placeholder="https://example.com/affiliate"
+                                            value={link.url}
+                                            onChange={(e) => handleAffiliateLinkChange(index, 'url', e.target.value)}
+                                        />
+                                    </div>
+                                    <Button variant="ghost" size="icon" onClick={() => removeAffiliateLink(index)}>
+                                        <XIcon className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            ))}
+                            <Button variant="outline" onClick={addAffiliateLink}>Add Affiliate Link</Button>
+                        </div>
+                    </div>
+
+
                 </CardContent>
                 <CardFooter>
                     <Button onClick={handleUpdatePost} disabled={isSaving}>

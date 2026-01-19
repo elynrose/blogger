@@ -8,6 +8,7 @@ import { useCollection, useFirestore, useMemoFirebase, deleteDocumentNonBlocking
 import { collection, query, orderBy, Timestamp, doc } from 'firebase/firestore';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import {
   DropdownMenu,
@@ -34,6 +35,8 @@ interface Post {
     title: string;
     content: string;
     createdAt: Timestamp;
+    publishDate?: Timestamp;
+    status: 'draft' | 'published';
     imageUrl?: string;
 }
 
@@ -60,6 +63,11 @@ export default function AdminPostsPage() {
         setShowDeleteDialog(false);
         setPostToDelete(null);
     };
+
+    const getStatusVariant = (status: 'draft' | 'published') => {
+        if (status === 'published') return 'default';
+        return 'secondary';
+    }
 
     return (
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -135,16 +143,21 @@ export default function AdminPostsPage() {
                                     </DropdownMenuContent>
                                 </DropdownMenu>
                             </div>
+                            <div className='mt-2'>
+                                <Badge variant={getStatusVariant(post.status)}>{post.status}</Badge>
+                            </div>
                         </CardHeader>
                         <CardContent className="flex-grow">
                             <p className="text-sm text-muted-foreground line-clamp-3">
                                 {post.content}
                             </p>
                         </CardContent>
-                        <CardFooter className="mt-auto pt-4">
-                            <p className="text-xs text-muted-foreground">
-                                {post.createdAt ? format(post.createdAt.toDate(), 'MMM d, yyyy') : 'Date unavailable'}
-                            </p>
+                        <CardFooter className="mt-auto pt-4 text-xs text-muted-foreground">
+                            {post.status === 'published' && post.publishDate ? (
+                                <p>Published on {format(post.publishDate.toDate(), 'MMM d, yyyy')}</p>
+                            ) : (
+                                <p>Created on {post.createdAt ? format(post.createdAt.toDate(), 'MMM d, yyyy') : 'Date unavailable'}</p>
+                            )}
                         </CardFooter>
                     </Card>
                 ))}
