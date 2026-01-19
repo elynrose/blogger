@@ -1,7 +1,115 @@
-import { blogPosts } from '@/lib/data';
+'use client';
+
 import { PostCard } from '@/components/blog/post-card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import type { BlogPost } from '@/lib/types';
+import { collection, query, where, orderBy, Timestamp } from 'firebase/firestore';
+import { useMemo } from 'react';
+import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
+
+
+// Firestore post structure
+interface PostDocument {
+  id: string;
+  title: string;
+  content: string;
+  createdAt: Timestamp;
+  publishDate?: Timestamp;
+  status: 'draft' | 'published';
+  imageUrl?: string;
+  authorId: string;
+}
+
+// Firestore user structure
+interface UserDocument {
+  id: string;
+  username: string;
+  firstName?: string;
+  lastName?: string;
+  // The user document doesn't have an image URL.
+}
+
+function PostCardSkeleton() {
+    return (
+        <div className="group block">
+            <Card className="h-full flex flex-col overflow-hidden">
+                <CardHeader className="p-0">
+                <div className="relative h-48 w-full">
+                    <Skeleton className="h-full w-full" />
+                </div>
+                </CardHeader>
+                <CardContent className="flex-grow p-6">
+                    <Skeleton className="h-6 w-3/4 mb-2" />
+                    <div className="space-y-2 mt-4">
+                        <Skeleton className="h-4 w-full" />
+                        <Skeleton className="h-4 w-5/6" />
+                    </div>
+                </CardContent>
+                <CardFooter className="p-6 pt-0 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <Skeleton className="h-6 w-6 rounded-full" />
+                        <Skeleton className="h-4 w-20" />
+                    </div>
+                    <Skeleton className="h-4 w-24" />
+                </CardFooter>
+            </Card>
+        </div>
+    );
+}
 
 export default function Home() {
+  const firestore = useFirestore();
+
+  const postsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(
+      collection(firestore, 'posts'),
+      where('status', '==', 'published'),
+      orderBy('publishDate', 'desc')
+    );
+  }, [firestore]);
+
+  const usersQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'users');
+  }, [firestore]);
+
+  const { data: posts, isLoading: isLoadingPosts } = useCollection<PostDocument>(postsQuery);
+  const { data: users, isLoading: isLoadingUsers } = useCollection<UserDocument>(usersQuery);
+
+  const authors = useMemo(() => {
+    if (!users) return new Map();
+    return new Map(users.map(user => [user.id, user]));
+  }, [users]);
+
+
+  const mappedPosts: BlogPost[] | null = useMemo(() => {
+    if (!posts || !authors || authors.size === 0) return null;
+    return posts.map(post => {
+      const author = authors.get(post.authorId);
+      const authorName = author ? `${author.firstName || ''} ${author.lastName || author.username}`.trim() : 'AISaaS Explorer';
+      const excerpt = post.content ? post.content.substring(0, 150) + '...' : '';
+      const date = post.publishDate ? post.publishDate.toDate() : post.createdAt.toDate();
+
+      return {
+        slug: post.id,
+        title: post.title,
+        excerpt,
+        imageUrl: post.imageUrl || 'https://picsum.photos/seed/' + post.id + '/1200/800',
+        imageHint: 'technology',
+        author: authorName,
+        // The user document doesn't have an image URL. I'll use a placeholder.
+        authorImageUrl: 'https://picsum.photos/seed/' + post.authorId + '/100/100',
+        authorImageHint: 'person portrait',
+        date: date.toISOString(),
+        content: post.content,
+      };
+    });
+  }, [posts, authors]);
+  
+  const isLoading = isLoadingPosts || isLoadingUsers;
+
   return (
     <div className="container mx-auto px-4 sm:px-6 lg:px-8">
       <section className="text-center py-16 sm:py-24">
@@ -15,9 +123,17 @@ export default function Home() {
 
       <section className="pb-16">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {blogPosts.map((post) => (
+          {isLoading && Array.from({ length: 3 }).map((_, i) => (
+             <PostCardSkeleton key={i} />
+          ))}
+          {!isLoading && mappedPosts && mappedPosts.map((post) => (
             <PostCard key={post.slug} post={post} />
           ))}
+          {!isLoading && (!mappedPosts || mappedPosts.length === 0) && (
+              <div className="col-span-full text-center text-muted-foreground mt-8">
+                  <p>No published posts found.</p>
+              </div>
+          )}
         </div>
       </section>
     </div>
