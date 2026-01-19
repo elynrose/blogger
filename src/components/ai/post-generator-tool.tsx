@@ -137,7 +137,7 @@ export function PostGeneratorTool() {
         authorId: user.uid,
         status,
         categoryId,
-        publishDate: publishDate ? Timestamp.fromDate(publishDate) : serverTimestamp(),
+        publishDate: publishDate ? Timestamp.fromDate(publishDate) : null,
         videoUrl,
         affiliateLinks,
         createdAt: serverTimestamp(),
@@ -384,3 +384,5 @@ export function PostGeneratorTool() {
     </div>
   );
 }
+
+    

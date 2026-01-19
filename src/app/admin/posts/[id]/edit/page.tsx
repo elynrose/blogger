@@ -105,7 +105,7 @@ export default function EditPostPage() {
             imageUrl,
             status,
             categoryId,
-            publishDate: publishDate ? Timestamp.fromDate(publishDate) : serverTimestamp(),
+            publishDate: publishDate ? Timestamp.fromDate(publishDate) : null,
             videoUrl,
             affiliateLinks,
             updatedAt: serverTimestamp(),
@@ -324,3 +324,5 @@ export default function EditPostPage() {
         </div>
     );
 }
+
+    
