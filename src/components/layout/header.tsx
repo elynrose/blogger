@@ -1,7 +1,12 @@
+'use client';
+
 import Link from 'next/link';
-import { BrainCircuit } from 'lucide-react';
+import { BrainCircuit, UserCog } from 'lucide-react';
+import { useUser } from '@/firebase';
 
 export function Header() {
+  const { user } = useUser();
+
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-14 max-w-screen-2xl items-center justify-between">
@@ -16,6 +21,12 @@ export function Header() {
           <Link href="/recommendations" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
             Recommendations
           </Link>
+          {user && (
+             <Link href="/admin" className="flex items-center text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
+                <UserCog className="mr-1 h-4 w-4" />
+                Admin
+            </Link>
+          )}
         </nav>
       </div>
     </header>
