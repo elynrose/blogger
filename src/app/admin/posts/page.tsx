@@ -1,13 +1,32 @@
 'use client';
 
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { PlusCircle } from 'lucide-react';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, Timestamp } from 'firebase/firestore';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { MoreHorizontal, PlusCircle, Edit, Trash2 } from 'lucide-react';
+import { useCollection, useFirestore, useMemoFirebase, deleteDocumentNonBlocking } from '@/firebase';
+import { collection, query, orderBy, Timestamp, doc } from 'firebase/firestore';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { format } from 'date-fns';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { useState } from 'react';
+import { useToast } from '@/hooks/use-toast';
 
 interface Post {
     id: string;
@@ -18,6 +37,9 @@ interface Post {
 
 export default function AdminPostsPage() {
     const firestore = useFirestore();
+    const { toast } = useToast();
+    const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+    const [postToDelete, setPostToDelete] = useState<Post | null>(null);
 
     const postsQuery = useMemoFirebase(() => {
         if (!firestore) return null;
@@ -25,6 +47,17 @@ export default function AdminPostsPage() {
     }, [firestore]);
 
     const { data: posts, isLoading } = useCollection<Post>(postsQuery);
+
+    const handleDelete = () => {
+        if (!postToDelete || !firestore) return;
+        const postRef = doc(firestore, 'posts', postToDelete.id);
+        
+        deleteDocumentNonBlocking(postRef);
+        toast({ title: 'Post deletion initiated.' });
+
+        setShowDeleteDialog(false);
+        setPostToDelete(null);
+    };
 
     return (
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -60,7 +93,36 @@ export default function AdminPostsPage() {
                 {!isLoading && posts && posts.map((post) => (
                     <Card key={post.id} className="flex flex-col">
                         <CardHeader>
-                            <CardTitle className="line-clamp-2">{post.title}</CardTitle>
+                            <div className="flex justify-between items-start">
+                                <CardTitle className="line-clamp-2 pr-2">{post.title}</CardTitle>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" className="h-8 w-8 p-0">
+                                            <span className="sr-only">Open menu</span>
+                                            <MoreHorizontal className="h-4 w-4" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                        <DropdownMenuItem asChild>
+                                            <Link href={`/admin/posts/${post.id}/edit`} className="flex items-center cursor-pointer">
+                                                <Edit className="mr-2 h-4 w-4" />
+                                                <span>Edit</span>
+                                            </Link>
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                            className="text-destructive focus:text-destructive focus:bg-destructive/10 flex items-center cursor-pointer"
+                                            onClick={() => {
+                                                setPostToDelete(post);
+                                                setShowDeleteDialog(true);
+                                            }}
+                                        >
+                                            <Trash2 className="mr-2 h-4 w-4" />
+                                            <span>Delete</span>
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            </div>
                         </CardHeader>
                         <CardContent className="flex-grow">
                             <p className="text-sm text-muted-foreground line-clamp-3">
@@ -81,6 +143,23 @@ export default function AdminPostsPage() {
                     </div>
                 )}
             </div>
+
+            <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This action cannot be undone. This will permanently delete the post &quot;{postToDelete?.title}&quot;.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDelete} className={buttonVariants({ variant: 'destructive' })}>
+                            Delete
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }
