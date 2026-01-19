@@ -17,8 +17,8 @@
  *   inaccessible from the client-side. Admin roles must be managed via a trusted
  *   server environment or the Firebase Console.
  * - Content Access: All primary content (`/posts`, `/categories`)
- *   is private and accessible only to admins for all operations (read and write). There
- *   is no public read access.
+ *   is private and accessible only to admins for all operations (read and write), with the
+ *   exception of published posts which are publicaly readable.
  * - User Profile Security: Users are allowed to create their own profile document upon
  *   signing up and can read their own data. However, only admins are permitted to update
  *   or delete user profiles.
@@ -149,7 +149,7 @@ service cloud.firestore {
      */
     match /posts/{postId} {
       allow get: if resource.data.status == 'published' || isAdmin();
-      allow list: if true;
+      allow list: if true; // Allow all users to attempt queries. The 'get' rule will secure the documents.
       allow create: if isAdmin() && request.resource.data.authorId == request.auth.uid;
       allow update: if isAdmin() && isExistingDoc() && request.resource.data.authorId == resource.data.authorId;
       allow delete: if isAdmin() && isExistingDoc();
