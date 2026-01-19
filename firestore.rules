@@ -73,6 +73,22 @@ service cloud.firestore {
     // ------------------------------------------------------------------------
 
     /**
+     * @description A special collection used by the client to verify if a user has admin
+     *              privileges without exposing any data. The client attempts to read a
+     *              document from this collection; if the read succeeds, the user is an admin.
+     *              The read will fail for non-admins due to security rules.
+     * @path /admin_check/{docId}
+     * @allow (get) An admin user successfully performs a 'get' to verify their status.
+     * @deny (get) A non-admin user's 'get' request is denied.
+     * @deny (any) All other operations (list, write) are denied for all users.
+     * @principle Provides a secure client-side mechanism to check for server-side roles without exposing role data.
+     */
+    match /admin_check/{docId} {
+      allow get: if isAdmin();
+      allow list, write: if false;
+    }
+
+    /**
      * @description Manages administrative user profiles. Users can create and read their own
      *              profile. Admins can read, update, and delete any profile.
      * @path /users/{userId}

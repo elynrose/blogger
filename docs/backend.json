@@ -319,8 +319,29 @@
             }
           ]
         }
+      },
+      {
+        "path": "/admin_check/{userId}",
+        "definition": {
+          "entityName": "AdminCheck",
+          "schema": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "boolean"
+              }
+            }
+          },
+          "description": "A collection used by the client to verify if a user has admin privileges. The client attempts to read a document from this collection; if the read succeeds, the user is an admin. The document ID should be the user's UID. The document itself can be empty.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user to check."
+            }
+          ]
+        }
       }
     ],
-    "reasoning": "The Firestore structure is designed to manage blog posts, categories, affiliate links, and link click tracking for the AISaaS Explorer application. It emphasizes authorization independence, clarity, and scalability.  Authorization Independence is achieved via path-based ownership for posts and categories (accessible only to admins), and explicit collections for admin roles.  This eliminates the need for `get()` calls in security rules. Structural Segregation isolates data with different security postures (admin data vs. click tracking).  Access Modeling uses path-based ownership and existence-based global roles.  QAPs are supported by segregating user-generated content and admin-controlled data into separate collections."
+    "reasoning": "The Firestore structure is designed to manage blog posts, categories, affiliate links, and link click tracking for the AISaaS Explorer application. It emphasizes authorization independence, clarity, and scalability.  Authorization Independence is achieved via path-based ownership for posts and categories (accessible only to admins), and explicit collections for admin roles.  This eliminates the need for `get()` calls in security rules. Structural Segregation isolates data with different security postures (admin data vs. click tracking).  Access Modeling uses path-based ownership and existence-based global roles.  QAPs are supported by segregating user-generated content and admin-controlled data into separate collections. A dedicated /admin_check collection is added to allow clients to securely verify admin status without exposing role data."
   }
 }
