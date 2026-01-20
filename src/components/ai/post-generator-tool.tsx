@@ -11,7 +11,9 @@ import { Bot, Loader, Sparkles, Calendar as CalendarIcon, X as XIcon } from 'luc
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '../ui/skeleton';
 import { Label } from '../ui/label';
-import { useFirestore, useUser, addDocumentNonBlocking, useCollection, useMemoFirebase, useDoc, useUserRole } from '@/firebase';
+import { RichTextEditor } from '../ui/rich-text-editor';
+import { Checkbox } from '../ui/checkbox';
+import { useFirestore, useUser, addDocumentNonBlocking, setDocumentNonBlocking, useCollection, useMemoFirebase, useDoc, useUserRole } from '@/firebase';
 import { collection, serverTimestamp, Timestamp, doc } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
@@ -26,8 +28,20 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { buildExcerpt } from '@/lib/content';
 
 type AffiliateLink = { text: string; url: string; };
+
+const toHtmlParagraphs = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  const looksLikeHtml = /<\/?[a-z][\s\S]*>/i.test(trimmed);
+  if (looksLikeHtml) return trimmed;
+  return trimmed
+    .split(/\n{2,}/)
+    .map((paragraph) => `<p>${paragraph.replace(/\n/g, '<br />')}</p>`)
+    .join('');
+};
 
 const parseTags = (value: string) =>
   value
@@ -86,6 +100,8 @@ export function PostGeneratorTool() {
   const [videoUrl, setVideoUrl] = useState('');
   const [affiliateLinks, setAffiliateLinks] = useState<AffiliateLink[]>([]);
   const [tagsInput, setTagsInput] = useState('');
+  const [staffPick, setStaffPick] = useState(false);
+  const [subscriptionRequired, setSubscriptionRequired] = useState(false);
 
   useEffect(() => {
     if (state?.message === 'Success' && state.generatedPost) {
@@ -94,7 +110,7 @@ export function PostGeneratorTool() {
           description: "The AI has created a draft for your new post.",
       });
       setGeneratedTitle(state.generatedPost.title);
-      setGeneratedContent(state.generatedPost.content);
+      setGeneratedContent(toHtmlParagraphs(state.generatedPost.content));
       setImageUrl('');
     } else if (state?.message && state.message !== 'Success' && !state.errors) {
         toast({
@@ -108,6 +124,7 @@ export function PostGeneratorTool() {
   useEffect(() => {
     if (role === 'writer') {
       setStatus('draft');
+      setSubscriptionRequired(false);
     }
   }, [role]);
 
@@ -156,9 +173,10 @@ export function PostGeneratorTool() {
 
     const tags = parseTags(tagsInput);
 
+    const excerpt = buildExcerpt(generatedContent, 160);
+
     addDocumentNonBlocking(postsCollection, {
         title: generatedTitle,
-        content: generatedContent,
         imageUrl: imageUrl,
         authorId: user.uid,
         authorName: authorName,
@@ -168,9 +186,19 @@ export function PostGeneratorTool() {
         videoUrl,
         affiliateLinks,
         tags,
+        staffPick,
+        subscriptionRequired: canManageAll ? subscriptionRequired : false,
+        excerpt,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-    }).then(() => {
+    }).then((docRef) => {
+        if (docRef && firestore) {
+            const privateRef = doc(firestore, 'posts', docRef.id, 'private', 'content');
+            setDocumentNonBlocking(privateRef, {
+                content: generatedContent,
+                updatedAt: serverTimestamp(),
+            }, { merge: true });
+        }
         toast({
             title: 'Post Saved!',
             description: 'Your new post has been saved successfully.',
@@ -323,6 +351,28 @@ export function PostGeneratorTool() {
                         </Select>
                     </div>
                 </div>
+                <div className="flex items-center gap-3">
+                    <Checkbox
+                        id="staffPick"
+                        checked={staffPick}
+                        onCheckedChange={(checked) => setStaffPick(checked === true)}
+                        disabled={!canManageAll}
+                    />
+                    <Label htmlFor="staffPick" className="font-semibold">
+                        Staff Pick
+                    </Label>
+                </div>
+                <div className="flex items-center gap-3">
+                    <Checkbox
+                        id="subscriptionRequired"
+                        checked={subscriptionRequired}
+                        onCheckedChange={(checked) => setSubscriptionRequired(checked === true)}
+                        disabled={!canManageAll}
+                    />
+                    <Label htmlFor="subscriptionRequired" className="font-semibold">
+                        Subscription Required
+                    </Label>
+                </div>
                 <div>
                     <Label htmlFor="tags" className="font-semibold">Tags</Label>
                     <Input
@@ -384,7 +434,11 @@ export function PostGeneratorTool() {
 
                 <div>
                     <Label htmlFor="generatedContent" className="font-semibold">Content</Label>
-                    <Textarea id="generatedContent" value={generatedContent} onChange={(e) => setGeneratedContent(e.target.value)} className="text-base mt-1 min-h-[300px] leading-relaxed" />
+                    <RichTextEditor
+                        value={generatedContent}
+                        onChange={setGeneratedContent}
+                        className="mt-1"
+                    />
                 </div>
                  <div>
                     <Label htmlFor="videoUrl" className="font-semibold">Video Embed URL</Label>

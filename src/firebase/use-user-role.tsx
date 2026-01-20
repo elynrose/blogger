@@ -4,7 +4,7 @@ import { doc } from 'firebase/firestore';
 import { useDoc } from './firestore/use-doc';
 import { useFirestore, useMemoFirebase, useUser } from './provider';
 
-export type UserRole = 'reader' | 'writer' | 'editor';
+export type UserRole = 'reader' | 'writer' | 'editor' | 'admin';
 
 export function useUserRole() {
   const { user, isUserLoading } = useUser();

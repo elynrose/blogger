@@ -48,7 +48,7 @@ import { useToast } from '@/hooks/use-toast';
 interface Post {
   id: string;
   title: string;
-  content: string;
+  excerpt?: string;
   createdAt: Timestamp;
   publishDate?: Timestamp;
   status: 'draft' | 'published';
@@ -209,7 +209,7 @@ export default function WriterPostsPage() {
             </CardHeader>
             <CardContent className="flex-grow">
               <p className="text-sm text-muted-foreground line-clamp-3">
-                {post.content}
+                {post.excerpt || 'No excerpt yet.'}
               </p>
             </CardContent>
             <CardFooter className="mt-auto pt-4 text-xs text-muted-foreground flex flex-col items-start gap-1">

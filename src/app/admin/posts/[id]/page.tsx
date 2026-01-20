@@ -48,7 +48,7 @@ import { useToast } from '@/hooks/use-toast';
 type Post = {
   id: string;
   title: string;
-  content: string;
+  excerpt?: string;
   createdAt: Timestamp;
   publishDate?: Timestamp;
   status: 'draft' | 'published';
@@ -187,7 +187,7 @@ export default function AdminPostDetailPage() {
                 <span>Created: {formattedCreatedAt}</span>
                 {post.status === 'published' && <span>Published: {formattedPublishDate}</span>}
               </div>
-              <p className="line-clamp-3">{post.content}</p>
+              <p className="line-clamp-3">{post.excerpt || 'No excerpt yet.'}</p>
             </>
           )}
         </CardContent>

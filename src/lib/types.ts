@@ -17,4 +17,8 @@ export type BlogPost = {
   videoUrl?: string;
   affiliateLinks?: AffiliateLink[];
   tags?: string[];
+  staffPick?: boolean;
+  category?: string | null;
+  categoryId?: string | null;
+  subscriptionRequired?: boolean;
 };

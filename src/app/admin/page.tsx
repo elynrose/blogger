@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { FileText, Grip, Users } from 'lucide-react';
+import { CreditCard, FileText, Grip, Users } from 'lucide-react';
 import { SignOutButton } from '@/components/auth/sign-out-button';
 
 export default function AdminDashboard() {
@@ -52,6 +52,20 @@ export default function AdminDashboard() {
           <CardContent>
             <Link href="/admin/users">
               <Button>Go to Users</Button>
+            </Link>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CreditCard className="h-6 w-6" />
+              Manage Subscriptions
+            </CardTitle>
+            <CardDescription>Create plans and manage subscription access.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link href="/admin/subscriptions">
+              <Button>Go to Subscriptions</Button>
             </Link>
           </CardContent>
         </Card>

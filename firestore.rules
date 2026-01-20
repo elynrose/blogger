@@ -76,6 +76,14 @@ service cloud.firestore {
       return isAdmin() || isEditor();
     }
 
+    function isSubscriber() {
+      return isSignedIn() && request.auth.token.subscriber == true;
+    }
+
+    function postData(postId) {
+      return get(/databases/$(database)/documents/posts/$(postId)).data;
+    }
+
 
     /**
      * Verifies that a document exists before an update or delete operation.
@@ -121,12 +129,21 @@ service cloud.firestore {
      * @principle Enforces strict role-based access control for content taxonomy.
      */
     match /categories/{categoryId} {
-      // Any signed-in user can read categories (needed for post creation).
-      allow get, list: if isSignedIn();
+      // Public can read categories (needed for public listing and filters).
+      allow get, list: if true;
       // Only editors/admins manage categories.
       allow create: if isAdminOrEditor();
       allow update: if isAdminOrEditor() && isExistingDoc();
       allow delete: if isAdminOrEditor() && isExistingDoc();
+    }
+
+    /**
+     * @description Subscription plans for paid access. Public can read active plans.
+     * @path /subscription_plans/{planId}
+     */
+    match /subscription_plans/{planId} {
+      allow get, list: if true;
+      allow create, update, delete: if isAdmin();
     }
 
     /**
@@ -142,11 +159,13 @@ service cloud.firestore {
     match /posts/{postId} {
       // --- Read Access ---
       // Admins and editors can read any post.
-      allow read: if isAdminOrEditor();
+      allow get: if isAdminOrEditor();
       // Any user can read published posts.
-      allow read: if resource.data.status == 'published';
+      allow get: if resource.data.status == 'published';
       // Any signed-in user can read their own posts (including drafts).
-      allow read: if isSignedIn() && resource.data.authorId == request.auth.uid;
+      allow get: if isSignedIn() && resource.data.authorId == request.auth.uid;
+      // Public lists are allowed (documents only contain public fields).
+      allow list: if true;
 
 
       // --- Create Access ---
@@ -157,7 +176,8 @@ service cloud.firestore {
       // Writers can only create drafts for themselves.
       allow create: if isWriter() &&
         request.resource.data.authorId == request.auth.uid &&
-        request.resource.data.status == 'draft';
+        request.resource.data.status == 'draft' &&
+        ( !('staffPick' in request.resource.data) || request.resource.data.staffPick == false );
 
       // --- Update Access ---
       // Admins and editors can update any post, but cannot change authorId.
@@ -168,10 +188,30 @@ service cloud.firestore {
         request.resource.data.authorId == resource.data.authorId &&
         resource.data.authorId == request.auth.uid &&
         resource.data.status == 'draft' &&
-        request.resource.data.status == 'draft';
+        request.resource.data.status == 'draft' &&
+        ( !('staffPick' in request.resource.data) || request.resource.data.staffPick == resource.data.staffPick );
 
       // --- Delete Access ---
       allow delete: if isAdmin();
+    }
+
+    /**
+     * @description Stores paid/private post content.
+     * @path /posts/{postId}/private/{docId}
+     */
+    match /posts/{postId}/private/{docId} {
+      allow read: if
+        isAdminOrEditor() ||
+        (isSignedIn() && postData(postId).authorId == request.auth.uid) ||
+        (postData(postId).status == 'published' &&
+          ( !('subscriptionRequired' in postData(postId)) || postData(postId).subscriptionRequired == false )) ||
+        (postData(postId).status == 'published' && isSubscriber());
+
+      allow create, update: if
+        isAdminOrEditor() ||
+        (isWriter() && postData(postId).authorId == request.auth.uid && postData(postId).status == 'draft');
+
+      allow delete: if isAdminOrEditor();
     }
 
     /**

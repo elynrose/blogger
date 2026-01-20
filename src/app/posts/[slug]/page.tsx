@@ -2,23 +2,24 @@
 
 import { notFound, useParams } from 'next/navigation';
 import Image from 'next/image';
-import { useDoc, useFirestore, useMemoFirebase } from '@/firebase';
+import { useDoc, useFirestore, useMemoFirebase, useUser, useUserRole } from '@/firebase';
 import type { AffiliateLink } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { CalendarDays } from 'lucide-react';
 import { VideoEmbed } from '@/components/blog/video-embed';
-import { AffiliateLink as AffiliateLinkComponent } from '@/components/blog/affiliate-link';
 import { doc, increment, runTransaction, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Share2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import Link from 'next/link';
+import { Badge } from '@/components/ui/badge';
 
 type PostDocument = {
     id: string;
     title: string;
-    content: string;
+    excerpt?: string;
     authorId: string;
     authorName: string;
     imageUrl?: string;
@@ -26,79 +27,60 @@ type PostDocument = {
     publishDate?: Timestamp;
     createdAt: Timestamp;
     affiliateLinks?: AffiliateLink[];
+    categoryId?: string;
+    subscriptionRequired?: boolean;
 };
 
 // This component replaces the old logic for rendering affiliate links.
 const ParsedContent = ({ content, affiliateLinks }: { content: string; affiliateLinks?: AffiliateLink[] }) => {
     if (!content) return null;
 
-    const links = affiliateLinks ?? [];
-    const tokenRegex = /\{\{affiliate(\d+)\}\}/g;
+    const escapeHtml = (value: string) =>
+        value
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
 
-    const renderParagraph = (paragraph: string, pIndex: number) => {
-        const nodes: React.ReactNode[] = [];
-        let lastIndex = 0;
-        let match: RegExpExecArray | null;
-        let segmentIndex = 0;
-
-        while ((match = tokenRegex.exec(paragraph)) !== null) {
-            const [token, indexStr] = match;
-            const matchIndex = match.index;
-
-            if (matchIndex > lastIndex) {
-                const text = paragraph.slice(lastIndex, matchIndex).trim();
-                if (text) {
-                    nodes.push(
-                        <p key={`p-${pIndex}-text-${segmentIndex++}`} className="mb-6 leading-relaxed text-lg">
-                            {text}
-                        </p>
-                    );
-                }
-            }
-
-            const linkIndex = Number(indexStr) - 1;
-            const link = links[linkIndex];
-            if (link?.url) {
-                nodes.push(
-                    <div key={`p-${pIndex}-link-${linkIndex}`} className="mb-6">
-                        <AffiliateLinkComponent href={link.url}>
-                            {link.text || link.url}
-                        </AffiliateLinkComponent>
-                    </div>
-                );
-            }
-
-            lastIndex = matchIndex + token.length;
-        }
-
-        if (lastIndex < paragraph.length) {
-            const text = paragraph.slice(lastIndex).trim();
-            if (text) {
-                nodes.push(
-                    <p key={`p-${pIndex}-text-${segmentIndex++}`} className="mb-6 leading-relaxed text-lg">
-                        {text}
-                    </p>
-                );
-            }
-        }
-
-        if (!nodes.length) {
-            return null;
-        }
-
-        return (
-            <div key={`p-${pIndex}`} className="space-y-0">
-                {nodes}
-            </div>
-        );
+    const toHtml = (raw: string) => {
+        const looksLikeHtml = /<\/?[a-z][\s\S]*>/i.test(raw);
+        if (looksLikeHtml) return raw;
+        return raw
+            .split('\n\n')
+            .map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`)
+            .join('');
     };
 
-    const contentParagraphs = content.split('\n\n').map((paragraph, pIndex) => {
-        if (!paragraph.trim()) return null;
-        return renderParagraph(paragraph, pIndex);
+    const renderAffiliateLink = (link: AffiliateLink) => {
+        const label = escapeHtml(link.text || link.url);
+        const href = escapeHtml(link.url);
+        return `
+          <a href="${href}" target="_blank" rel="noopener noreferrer"
+            class="group my-6 block rounded-lg border-2 border-accent/50 bg-accent/10 p-4 font-medium text-foreground transition-all duration-300 hover:bg-accent/20 hover:border-accent hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-accent/80 focus:ring-offset-2 focus:ring-offset-background">
+            <div class="flex items-center justify-between">
+              <span class="font-headline text-primary/90 group-hover:text-primary">${label}</span>
+              <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground transition-transform group-hover:translate-x-1">
+                <span>&rarr;</span>
+              </div>
+            </div>
+          </a>
+        `;
+    };
+
+    const links = affiliateLinks ?? [];
+    const tokenRegex = /\{\{affiliate(\d+)\}\}/g;
+    const seen = new Set<number>();
+    const html = toHtml(content).replace(tokenRegex, (_match, indexStr) => {
+        const linkIndex = Number(indexStr) - 1;
+        if (seen.has(linkIndex)) return '';
+        seen.add(linkIndex);
+        const link = links[linkIndex];
+        if (!link?.url) return '';
+        return renderAffiliateLink(link);
     });
 
-    return <>{contentParagraphs}</>;
+    return <div dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
 export default function PostPage() {
@@ -107,6 +89,8 @@ export default function PostPage() {
     const hasSlug = typeof slug === 'string' && slug.length > 0;
 
     const firestore = useFirestore();
+    const { user } = useUser();
+    const { role } = useUserRole();
 
     const postRef = useMemoFirebase(() => {
         if (!firestore || !hasSlug) return null;
@@ -114,8 +98,36 @@ export default function PostPage() {
     }, [firestore, hasSlug, slug]);
 
     const { data: post, isLoading: isPostLoading, error: postError } = useDoc<PostDocument>(postRef);
+    const userProfileRef = useMemoFirebase(() => {
+        if (!firestore || !user) return null;
+        return doc(firestore, 'users', user.uid);
+    }, [firestore, user]);
+    const { data: userProfile } = useDoc<{
+        subscriptionStatus?: string;
+        subscriptionActive?: boolean;
+    }>(userProfileRef, { preventGlobalError: true });
+    const categoryRef = useMemoFirebase(() => {
+        if (!firestore || !post?.categoryId) return null;
+        return doc(firestore, 'categories', post.categoryId);
+    }, [firestore, post?.categoryId]);
+    const { data: category } = useDoc<{ name?: string }>(categoryRef);
     const hasLoggedViewRef = useRef(false);
     const { toast } = useToast();
+
+    const subscriptionStatus = userProfile?.subscriptionStatus ?? '';
+    const isSubscribed = !!userProfile?.subscriptionActive || subscriptionStatus === 'active' || subscriptionStatus === 'trialing';
+    const isAuthor = !!user && !!post && user.uid === post.authorId;
+    const canManageAll = role === 'admin' || role === 'editor';
+    const canViewFullContent = !!post && (!post.subscriptionRequired || isSubscribed || isAuthor || canManageAll);
+    const previewText = (post?.excerpt || '').substring(0, 240);
+
+    const privateContentRef = useMemoFirebase(() => {
+        if (!firestore || !post?.id) return null;
+        if (post.subscriptionRequired && !canViewFullContent) return null;
+        return doc(firestore, 'posts', post.id, 'private', 'content');
+    }, [firestore, post?.id, post?.subscriptionRequired, canViewFullContent]);
+    const { data: privateContent, isLoading: isPrivateContentLoading } = useDoc<{ content?: string }>(privateContentRef);
+    const fullContent = privateContent?.content || '';
 
     useEffect(() => {
         if (post?.title) {
@@ -235,7 +247,14 @@ export default function PostPage() {
         <header className="mb-8">
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                 <div>
-                    <h1 className="text-4xl md:text-5xl font-headline font-bold text-primary mb-4">{post.title}</h1>
+                    <div className="flex flex-wrap items-center gap-3 mb-4">
+                        <h1 className="text-4xl md:text-5xl font-headline font-bold text-primary">{post.title}</h1>
+                        {post.subscriptionRequired && (
+                            <Badge variant="outline" className="text-xs uppercase tracking-wide">
+                                Subscribers
+                            </Badge>
+                        )}
+                    </div>
                     <div className="flex items-center space-x-4 text-sm text-muted-foreground">
                     <div className="flex items-center gap-2">
                         <Avatar className="h-8 w-8">
@@ -250,6 +269,17 @@ export default function PostPage() {
                         <span>{date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
                     </div>
                     </div>
+                    {category?.name && post.categoryId && (
+                        <p className="mt-3 text-sm font-medium text-muted-foreground">
+                            Category:{' '}
+                            <Link
+                                href={`/categories/${encodeURIComponent(post.categoryId)}`}
+                                className="text-foreground hover:text-primary transition-colors"
+                            >
+                                {category.name}
+                            </Link>
+                        </p>
+                    )}
                 </div>
                 <Button type="button" variant="outline" onClick={handleShare} className="shrink-0">
                     <Share2 className="mr-2 h-4 w-4" />
@@ -271,11 +301,36 @@ export default function PostPage() {
             </div>
         )}
 
-        <div className="max-w-none text-foreground/90">
-            <ParsedContent content={post.content} affiliateLinks={post.affiliateLinks} />
-        </div>
+        {post.subscriptionRequired && !canViewFullContent && (
+            <div className="rounded-lg border border-foreground/10 bg-muted/40 p-6 mb-8">
+                <h2 className="text-2xl font-headline font-bold text-primary mb-2">Subscriber-only content</h2>
+                <p className="text-sm text-muted-foreground mb-4">
+                    This article is available to subscribers. Unlock the full post by subscribing.
+                </p>
+                <Link href="/subscribe">
+                    <Button>View Subscription Plans</Button>
+                </Link>
+            </div>
+        )}
 
-        {post.videoUrl && (
+        {post.subscriptionRequired && !canViewFullContent ? (
+            <div className="max-w-none text-foreground/90">
+                {previewText && <p className="text-muted-foreground">{previewText}...</p>}
+                {!previewText && <p className="text-muted-foreground">Subscribe to read the full article.</p>}
+            </div>
+        ) : isPrivateContentLoading ? (
+            <div className="space-y-4">
+                <Skeleton className="h-6 w-full" />
+                <Skeleton className="h-6 w-full" />
+                <Skeleton className="h-6 w-5/6" />
+            </div>
+        ) : (
+            <div className="max-w-none text-foreground/90">
+                <ParsedContent content={fullContent} affiliateLinks={post.affiliateLinks} />
+            </div>
+        )}
+
+        {post.videoUrl && canViewFullContent && (
             <section className="mt-12">
             <h2 className="text-3xl font-headline font-bold mb-4">Video Tutorial</h2>
             <VideoEmbed url={post.videoUrl} />

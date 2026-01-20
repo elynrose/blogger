@@ -1,6 +1,6 @@
 'use client';
 
-import { useDoc, useFirestore, updateDocumentNonBlocking, useMemoFirebase, useCollection, useUserRole, useUser } from '@/firebase';
+import { useDoc, useFirestore, updateDocumentNonBlocking, setDocumentNonBlocking, useMemoFirebase, useCollection, useUserRole, useUser } from '@/firebase';
 import { doc, serverTimestamp, collection, Timestamp } from 'firebase/firestore';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Loader, ArrowLeft, Calendar as CalendarIcon, X as XIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -25,6 +26,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { RichTextEditor } from '@/components/ui/rich-text-editor';
+import { buildExcerpt } from '@/lib/content';
 
 type AffiliateLink = { text: string; url: string; };
 
@@ -54,6 +57,12 @@ export default function WriterEditPostPage() {
     }, [firestore, postId, canWrite]);
 
     const { data: post, isLoading: isPostLoading } = useDoc(postRef);
+
+    const privateContentRef = useMemoFirebase(() => {
+        if (!firestore || !postId || !canWrite) return null;
+        return doc(firestore, 'posts', postId, 'private', 'content');
+    }, [firestore, postId, canWrite]);
+    const { data: privateContent } = useDoc<{ content?: string }>(privateContentRef);
     
     const categoriesQuery = useMemoFirebase(() => {
         if (!firestore || !canWrite) return null;
@@ -71,13 +80,15 @@ export default function WriterEditPostPage() {
     const [videoUrl, setVideoUrl] = useState('');
     const [affiliateLinks, setAffiliateLinks] = useState<AffiliateLink[]>([]);
     const [tagsInput, setTagsInput] = useState('');
+    const [staffPick, setStaffPick] = useState(false);
+    const [subscriptionRequired, setSubscriptionRequired] = useState(false);
     
     const [isSaving, setIsSaving] = useState(false);
 
     useEffect(() => {
         if (post) {
             setTitle(post.title);
-            setContent(post.content);
+            setContent(privateContent?.content ?? post.content ?? '');
             setImageUrl(post.imageUrl || '');
             setStatus(post.status || 'draft');
             setCategoryId(post.categoryId || '');
@@ -85,8 +96,10 @@ export default function WriterEditPostPage() {
             setVideoUrl(post.videoUrl || '');
             setAffiliateLinks(post.affiliateLinks || []);
             setTagsInput(post.tags ? post.tags.join(', ') : '');
+            setStaffPick(!!post.staffPick);
+            setSubscriptionRequired(!!post.subscriptionRequired);
         }
-    }, [post]);
+    }, [post, privateContent]);
     
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -112,9 +125,10 @@ export default function WriterEditPostPage() {
         if (!postRef) return;
         setIsSaving(true);
         
+        const excerpt = buildExcerpt(content, 160);
+
         updateDocumentNonBlocking(postRef, {
             title,
-            content,
             imageUrl,
             status,
             categoryId,
@@ -122,8 +136,18 @@ export default function WriterEditPostPage() {
             videoUrl,
             affiliateLinks,
             tags: parseTags(tagsInput),
+            staffPick,
+            subscriptionRequired,
+            excerpt,
             updatedAt: serverTimestamp(),
         });
+
+        if (privateContentRef) {
+            setDocumentNonBlocking(privateContentRef, {
+                content,
+                updatedAt: serverTimestamp(),
+            }, { merge: true });
+        }
 
         toast({ title: 'Post updated!', description: 'Your changes have been saved.' });
         setIsSaving(false);
@@ -283,6 +307,28 @@ export default function WriterEditPostPage() {
                             </Select>
                         </div>
                     </div>
+                    <div className="flex items-center gap-3">
+                        <Checkbox
+                            id="staffPick"
+                            checked={staffPick}
+                            onCheckedChange={(checked) => setStaffPick(checked === true)}
+                            disabled={!canManageAll}
+                        />
+                        <Label htmlFor="staffPick" className="font-semibold">
+                            Staff Pick
+                        </Label>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <Checkbox
+                            id="subscriptionRequired"
+                            checked={subscriptionRequired}
+                            onCheckedChange={(checked) => setSubscriptionRequired(checked === true)}
+                            disabled={!canManageAll}
+                        />
+                        <Label htmlFor="subscriptionRequired" className="font-semibold">
+                            Subscription Required
+                        </Label>
+                    </div>
 
                      <div>
                         <Label htmlFor="publishDate" className="font-semibold block mb-1">Publish Date</Label>
@@ -329,8 +375,8 @@ export default function WriterEditPostPage() {
                         )}
                     </div>
                     <div>
-                        <Label htmlFor="content" className="font-semibold">Content (Markdown)</Label>
-                        <Textarea id="content" value={content} onChange={(e) => setContent(e.target.value)} rows={15} className="mt-1" />
+                        <Label htmlFor="content" className="font-semibold">Content</Label>
+                        <RichTextEditor value={content} onChange={setContent} className="mt-1" />
                     </div>
 
                     <div>
