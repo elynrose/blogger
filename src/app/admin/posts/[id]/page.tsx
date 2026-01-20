@@ -1,18 +1,22 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import {
   collection,
   doc,
+  getDocs,
+  limit,
   orderBy,
   query,
+  startAfter,
   Timestamp,
+  type DocumentData,
+  type QueryDocumentSnapshot,
 } from 'firebase/firestore';
 import {
-  useCollection,
   useDoc,
   useFirestore,
   useIsAdmin,
@@ -101,7 +105,40 @@ export default function AdminPostDetailPage() {
 
   const { data: post, isLoading: isPostLoading } = useDoc<Post>(postRef);
   const { data: viewStats, isLoading: isStatsLoading } = useDoc<PostViewStats>(viewStatsRef);
-  const { data: viewIps, isLoading: isIpsLoading } = useCollection<ViewIp>(viewIpsQuery);
+  const [viewIps, setViewIps] = useState<ViewIp[]>([]);
+  const [isIpsLoading, setIsIpsLoading] = useState(true);
+  const [isIpsLoadingMore, setIsIpsLoadingMore] = useState(false);
+  const [ipsLastDoc, setIpsLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+  const [ipsHasMore, setIpsHasMore] = useState(true);
+
+  useEffect(() => {
+    if (!firestore || !viewIpsQuery) return;
+    let isCancelled = false;
+
+    const loadInitial = async () => {
+      setIsIpsLoading(true);
+      const initialQuery = query(
+        collection(firestore, 'post_views', postId, 'ips'),
+        orderBy('lastSeenAt', 'desc'),
+        limit(25)
+      );
+      const snapshot = await getDocs(initialQuery);
+      if (isCancelled) return;
+      const results: ViewIp[] = snapshot.docs.map((docSnap) => ({
+        ...(docSnap.data() as ViewIp),
+        id: docSnap.id,
+      }));
+      setViewIps(results);
+      setIpsLastDoc(snapshot.docs[snapshot.docs.length - 1] ?? null);
+      setIpsHasMore(snapshot.docs.length === 25);
+      setIsIpsLoading(false);
+    };
+
+    loadInitial();
+    return () => {
+      isCancelled = true;
+    };
+  }, [firestore, viewIpsQuery, postId]);
 
   const isLoading = isAdminLoading || isRoleLoading || isPostLoading || isStatsLoading || isIpsLoading;
 
@@ -140,6 +177,26 @@ export default function AdminPostDetailPage() {
     deleteDocumentNonBlocking(targetRef);
     toast({ title: 'Post deletion initiated.' });
     router.push('/admin/posts');
+  };
+
+  const handleLoadMoreIps = async () => {
+    if (!firestore || !ipsHasMore || !ipsLastDoc || isIpsLoadingMore) return;
+    setIsIpsLoadingMore(true);
+    const nextQuery = query(
+      collection(firestore, 'post_views', postId, 'ips'),
+      orderBy('lastSeenAt', 'desc'),
+      startAfter(ipsLastDoc),
+      limit(25)
+    );
+    const snapshot = await getDocs(nextQuery);
+    const results: ViewIp[] = snapshot.docs.map((docSnap) => ({
+      ...(docSnap.data() as ViewIp),
+      id: docSnap.id,
+    }));
+    setViewIps((prev) => [...prev, ...results]);
+    setIpsLastDoc(snapshot.docs[snapshot.docs.length - 1] ?? ipsLastDoc);
+    setIpsHasMore(snapshot.docs.length === 25);
+    setIsIpsLoadingMore(false);
   };
 
   return (
@@ -234,6 +291,13 @@ export default function AdminPostDetailPage() {
             </TableBody>
           </Table>
         </CardContent>
+        {!isLoading && ipsHasMore && (
+          <div className="p-4 flex justify-center">
+            <Button onClick={handleLoadMoreIps} disabled={isIpsLoadingMore}>
+              {isIpsLoadingMore ? 'Loading...' : 'Load more'}
+            </Button>
+          </div>
+        )}
         {!isLoading && (!viewIps || viewIps.length === 0) && (
           <div className="p-6 text-center text-sm text-muted-foreground">
             No views recorded yet.

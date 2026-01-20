@@ -12,6 +12,7 @@ import type { BlogPost } from '@/lib/types';
 interface PostDocument {
   id: string;
   title: string;
+  slug?: string;
   excerpt?: string;
   createdAt: Timestamp;
   publishDate?: Timestamp;
@@ -19,6 +20,7 @@ interface PostDocument {
   imageUrl?: string;
   authorId: string;
   authorName: string;
+  authorPhotoUrl?: string;
   tags?: string[];
   categoryId?: string;
   subscriptionRequired?: boolean;
@@ -64,7 +66,7 @@ export default function TagPostsPage() {
       collection(firestore, 'posts'),
       where('status', '==', 'published'),
       where('tags', 'array-contains', decodedTag),
-      orderBy('publishDate', 'desc')
+      orderBy('createdAt', 'desc')
     );
   }, [firestore, decodedTag]);
 
@@ -84,15 +86,16 @@ export default function TagPostsPage() {
       const excerpt = post.excerpt || '';
       const date = post.publishDate ? post.publishDate.toDate() : post.createdAt.toDate();
       const categoryName = post.categoryId ? categoryMap.get(post.categoryId) : undefined;
+      const slugValue = post.slug || post.id;
 
       return {
-        slug: post.id,
+        slug: slugValue,
         title: post.title,
         excerpt,
         imageUrl: post.imageUrl || 'https://picsum.photos/seed/' + post.id + '/1200/800',
         imageHint: 'technology',
         author: authorName,
-        authorImageUrl: 'https://picsum.photos/seed/' + post.authorId + '/100/100',
+        authorImageUrl: post.authorPhotoUrl || 'https://picsum.photos/seed/' + post.authorId + '/100/100',
         authorImageHint: 'person portrait',
         date: date.toISOString(),
         content: excerpt,

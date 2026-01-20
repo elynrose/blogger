@@ -28,6 +28,7 @@ import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { RichTextEditor } from '@/components/ui/rich-text-editor';
 import { buildExcerpt } from '@/lib/content';
+import { slugify } from '@/lib/slug';
 
 type AffiliateLink = { text: string; url: string; };
 
@@ -127,9 +128,11 @@ export default function EditPostPage() {
         setIsSaving(true);
         
         const excerpt = buildExcerpt(content, 160);
+        const slug = slugify(title);
 
         updateDocumentNonBlocking(postRef, {
             title,
+            slug,
             imageUrl,
             status,
             categoryId,

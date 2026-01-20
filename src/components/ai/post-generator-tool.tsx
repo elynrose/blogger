@@ -29,6 +29,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { buildExcerpt } from '@/lib/content';
+import { slugify } from '@/lib/slug';
 
 type AffiliateLink = { text: string; url: string; };
 
@@ -170,16 +171,20 @@ export function PostGeneratorTool() {
 
     const postsCollection = collection(firestore, 'posts');
     const authorName = (userProfile ? `${userProfile.firstName || ''} ${userProfile.lastName || userProfile.username}`.trim() : user?.email) || 'Polygeno';
+    const authorPhotoUrl = userProfile?.profilePhotoUrl || user?.photoURL || '';
 
     const tags = parseTags(tagsInput);
 
     const excerpt = buildExcerpt(generatedContent, 160);
+    const slug = slugify(generatedTitle);
 
     addDocumentNonBlocking(postsCollection, {
         title: generatedTitle,
+        slug,
         imageUrl: imageUrl,
         authorId: user.uid,
         authorName: authorName,
+        authorPhotoUrl,
         status,
         categoryId,
         publishDate: publishDate ? Timestamp.fromDate(publishDate) : null,

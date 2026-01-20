@@ -4,9 +4,10 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { BrainCircuit, Search, UserCog, PenSquare, LogOut } from 'lucide-react';
-import { useAuth, useUser, useUserRole, useIsAdmin } from '@/firebase';
+import { useAuth, useDoc, useFirestore, useMemoFirebase, useUser, useUserRole, useIsAdmin } from '@/firebase';
 import { Input } from '@/components/ui/input';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { doc } from 'firebase/firestore';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,7 +17,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 export function Header() {
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
+  const firestore = useFirestore();
   const auth = useAuth();
   const { role, isLoading: isRoleLoading } = useUserRole();
   const { isAdmin, isLoading: isAdminLoading } = useIsAdmin();
@@ -24,6 +26,13 @@ export function Header() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [searchValue, setSearchValue] = useState('');
+
+  const userRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, 'users', user.uid);
+  }, [firestore, user]);
+  const { data: userProfile } = useDoc<{ profilePhotoUrl?: string }>(userRef);
+  const avatarUrl = user?.photoURL || userProfile?.profilePhotoUrl || '';
 
   useEffect(() => {
     const currentQuery = searchParams.get('q') ?? '';
@@ -94,10 +103,11 @@ export function Header() {
               Admin
             </Link>
           )}
-          {user && (
+          {!isUserLoading && user && (
             <DropdownMenu>
               <DropdownMenuTrigger className="outline-none">
                 <Avatar className="h-8 w-8">
+                  <AvatarImage src={avatarUrl} alt={user.email || 'User'} />
                   <AvatarFallback>{(user.email || 'U').charAt(0).toUpperCase()}</AvatarFallback>
                 </Avatar>
               </DropdownMenuTrigger>
@@ -112,6 +122,11 @@ export function Header() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+          )}
+          {!isUserLoading && !user && (
+            <Link href="/login" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
+              Login
+            </Link>
           )}
         </nav>
       </div>

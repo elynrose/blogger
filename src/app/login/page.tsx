@@ -3,8 +3,10 @@
 import { useState } from 'react';
 import { useAuth, useFirestore, setDocumentNonBlocking } from '@/firebase';
 import {
+  GoogleAuthProvider,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  signInWithPopup,
 } from 'firebase/auth';
 import { doc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
@@ -113,6 +115,63 @@ export default function LoginPage() {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const provider = new GoogleAuthProvider();
+      const credentials = await signInWithPopup(auth, provider);
+      const user = credentials.user;
+
+      if (firestore && user) {
+        const userDocRef = doc(firestore, 'users', user.uid);
+        const userSnapshot = await getDoc(userDocRef);
+        if (!userSnapshot.exists()) {
+          setDocumentNonBlocking(
+            userDocRef,
+            {
+              id: user.uid,
+              email: user.email,
+              username: user.email?.split('@')[0] || `user_${user.uid.substring(0, 5)}`,
+              firstName: user.displayName?.split(' ')[0] || '',
+              lastName: user.displayName?.split(' ').slice(1).join(' ') || '',
+              profilePhotoUrl: user.photoURL || '',
+              role: 'writer',
+              blocked: false,
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+            },
+            { merge: true }
+          );
+        }
+      }
+
+      toast({ title: 'Login successful!' });
+      let role = 'reader';
+      if (firestore && user) {
+        const userDocRef = doc(firestore, 'users', user.uid);
+        const userSnapshot = await getDoc(userDocRef);
+        if (userSnapshot.exists()) {
+          role = (userSnapshot.data()?.role as string) || 'reader';
+        }
+      }
+      if (role === 'admin') {
+        router.push('/admin');
+      } else {
+        router.push('/writer');
+      }
+    } catch (err: any) {
+      setError(err.message);
+      toast({
+        variant: 'destructive',
+        title: 'Google sign-in failed',
+        description: err.message,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const toggleForm = () => {
     setIsLogin(!isLogin);
     setError(null);
@@ -126,11 +185,11 @@ export default function LoginPage() {
         <form onSubmit={isLogin ? handleLogin : handleSignUp}>
           <CardHeader>
             <CardTitle className="text-2xl">
-              {isLogin ? 'Admin Login' : 'Create Account'}
+              {isLogin ? 'Login' : 'Create Account'}
             </CardTitle>
             <CardDescription>
               {isLogin
-                ? 'Enter your credentials to access the admin dashboard.'
+                ? 'Enter your credentials to access your account.'
                 : 'Create a new account. Admin access must be granted manually.'}
             </CardDescription>
           </CardHeader>
@@ -166,6 +225,15 @@ export default function LoginPage() {
             <Button className="w-full" type="submit" disabled={isLoading}>
               {isLoading && <Loader className="mr-2 h-4 w-4 animate-spin" />}
               {isLogin ? 'Sign in' : 'Sign up'}
+            </Button>
+            <Button
+              className="w-full"
+              type="button"
+              variant="outline"
+              onClick={handleGoogleSignIn}
+              disabled={isLoading}
+            >
+              Continue with Google
             </Button>
             <Button
               variant="link"

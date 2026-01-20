@@ -113,6 +113,8 @@ service cloud.firestore {
       allow list: if isAdmin();
       allow create: if isAdmin() || (isOwner(userId) && request.resource.data.id == userId);
       allow update: if isAdmin() && isExistingDoc() && request.resource.data.id == resource.data.id;
+      allow update: if isOwner(userId) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['firstName', 'lastName', 'profilePhotoUrl', 'updatedAt']);
       allow delete: if isAdmin() && isExistingDoc();
     }
 
@@ -193,6 +195,58 @@ service cloud.firestore {
 
       // --- Delete Access ---
       allow delete: if isAdmin();
+    }
+
+    /**
+     * @description Per-post likes keyed by user ID.
+     * @path /posts/{postId}/likes/{userId}
+     */
+    match /posts/{postId}/likes/{userId} {
+      allow read: if
+        isAdminOrEditor() ||
+        (postData(postId).status == 'published') ||
+        (isSignedIn() && postData(postId).authorId == request.auth.uid);
+
+      allow create: if
+        isSignedIn() &&
+        request.auth.uid == userId &&
+        request.resource.data.keys().hasOnly(['createdAt']) &&
+        request.resource.data.createdAt is timestamp;
+
+      allow delete: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    /**
+     * @description Per-post comments.
+     * @path /posts/{postId}/comments/{commentId}
+     */
+    match /posts/{postId}/comments/{commentId} {
+      allow read: if
+        isAdminOrEditor() ||
+        (postData(postId).status == 'published') ||
+        (isSignedIn() && postData(postId).authorId == request.auth.uid);
+
+      allow create: if
+        isSignedIn() &&
+        request.resource.data.keys().hasOnly(['userId', 'userName', 'body', 'postId', 'postTitle', 'status', 'createdAt']) &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.userName is string &&
+        request.resource.data.body is string &&
+        request.resource.data.postId == postId &&
+        request.resource.data.postTitle is string &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.createdAt is timestamp;
+
+      allow update: if
+        isAdminOrEditor() &&
+        request.resource.data.userId == resource.data.userId &&
+        request.resource.data.userName == resource.data.userName &&
+        request.resource.data.body == resource.data.body &&
+        request.resource.data.postId == resource.data.postId &&
+        request.resource.data.postTitle == resource.data.postTitle &&
+        request.resource.data.createdAt == resource.data.createdAt &&
+        (request.resource.data.status == 'approved' || request.resource.data.status == 'rejected');
+      allow delete: if isAdminOrEditor();
     }
 
     /**

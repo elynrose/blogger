@@ -9,7 +9,21 @@
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "publishDate",
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "posts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
           "order": "DESCENDING"
         }
       ]
@@ -41,7 +55,7 @@
           "arrayConfig": "CONTAINS"
         },
         {
-          "fieldPath": "publishDate",
+          "fieldPath": "createdAt",
           "order": "DESCENDING"
         }
       ]
@@ -59,7 +73,7 @@
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "publishDate",
+          "fieldPath": "createdAt",
           "order": "DESCENDING"
         }
       ]
@@ -77,7 +91,35 @@
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "publishDate",
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "subscription_plans",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "priceId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "active",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "comments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
           "order": "DESCENDING"
         }
       ]
