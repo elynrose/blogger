@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { stripe } from '@/lib/stripe';
+import { getStripe } from '@/lib/stripe';
 import { adminDb, admin, adminAuth } from '@/lib/firebase-admin';
 
 export const runtime = 'nodejs';
@@ -46,6 +46,8 @@ export async function POST(request: Request) {
   if (!webhookSecret) {
     return NextResponse.json({ error: 'Missing webhook secret' }, { status: 500 });
   }
+
+  const stripe = getStripe();
 
   const signature = request.headers.get('stripe-signature');
   if (!signature) {

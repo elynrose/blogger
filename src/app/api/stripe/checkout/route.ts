@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { stripe } from '@/lib/stripe';
+import { getStripe } from '@/lib/stripe';
 import { adminDb, adminAuth } from '@/lib/firebase-admin';
 
 export const runtime = 'nodejs';
@@ -35,6 +35,7 @@ export async function POST(request: Request) {
     const userData = userSnap.data();
     let customerId = userData?.stripeCustomerId as string | undefined;
 
+    const stripe = getStripe();
     if (!customerId) {
       const customer = await stripe.customers.create({
         email: decodedToken.email || undefined,
