@@ -6,6 +6,7 @@ import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import type { BlogPost } from '@/lib/types';
 import { collection, query, where, orderBy, Timestamp } from 'firebase/firestore';
 import { useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 
 
@@ -20,6 +21,7 @@ interface PostDocument {
   imageUrl?: string;
   authorId: string;
   authorName: string;
+  tags?: string[];
 }
 
 function PostCardSkeleton() {
@@ -52,6 +54,8 @@ function PostCardSkeleton() {
 
 export default function Home() {
   const firestore = useFirestore();
+  const searchParams = useSearchParams();
+  const searchQuery = (searchParams.get('q') ?? '').trim().toLowerCase();
 
   const postsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -67,7 +71,7 @@ export default function Home() {
   const mappedPosts: BlogPost[] | null = useMemo(() => {
     if (!posts) return null;
     return posts.map(post => {
-      const authorName = post.authorName || 'AISaaS Explorer';
+      const authorName = post.authorName || 'Polygeno';
       const excerpt = post.content ? post.content.substring(0, 150) + '...' : '';
       const date = post.publishDate ? post.publishDate.toDate() : post.createdAt.toDate();
 
@@ -83,9 +87,20 @@ export default function Home() {
         authorImageHint: 'person portrait',
         date: date.toISOString(),
         content: post.content,
+        tags: post.tags ?? [],
       };
     });
   }, [posts]);
+
+  const filteredPosts = useMemo(() => {
+    if (!mappedPosts) return null;
+    if (!searchQuery) return mappedPosts;
+    return mappedPosts.filter(post => {
+      const tags = post.tags?.join(' ') ?? '';
+      const haystack = `${post.title} ${post.excerpt} ${post.content} ${post.author} ${tags}`.toLowerCase();
+      return haystack.includes(searchQuery);
+    });
+  }, [mappedPosts, searchQuery]);
   
 
   return (
@@ -104,12 +119,12 @@ export default function Home() {
           {isLoading && Array.from({ length: 3 }).map((_, i) => (
              <PostCardSkeleton key={i} />
           ))}
-          {!isLoading && mappedPosts && mappedPosts.map((post) => (
+          {!isLoading && filteredPosts && filteredPosts.map((post) => (
             <PostCard key={post.slug} post={post} />
           ))}
-          {!isLoading && (!mappedPosts || mappedPosts.length === 0) && (
+          {!isLoading && (!filteredPosts || filteredPosts.length === 0) && (
               <div className="col-span-full text-center text-muted-foreground mt-8">
-                  <p>No published posts found.</p>
+                  <p>{searchQuery ? 'No matching posts found.' : 'No published posts found.'}</p>
               </div>
           )}
         </div>

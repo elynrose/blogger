@@ -1,6 +1,6 @@
 'use client';
 
-import { useDoc, useFirestore, updateDocumentNonBlocking, useMemoFirebase, useCollection, useIsAdmin, useUserRole, useUser } from '@/firebase';
+import { useDoc, useFirestore, updateDocumentNonBlocking, useMemoFirebase, useCollection, useUserRole, useUser } from '@/firebase';
 import { doc, serverTimestamp, collection, Timestamp } from 'firebase/firestore';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -34,19 +34,18 @@ const parseTags = (value: string) =>
         .map(tag => tag.trim())
         .filter(Boolean);
 
-export default function EditPostPage() {
+export default function WriterEditPostPage() {
     const router = useRouter();
     const params = useParams();
     const { id } = params;
     const postId = Array.isArray(id) ? id[0] : id;
 
     const firestore = useFirestore();
-    const { isAdmin, isLoading: isAdminLoading } = useIsAdmin();
     const { role, isLoading: isRoleLoading } = useUserRole();
     const { user } = useUser();
     const { toast } = useToast();
 
-    const canManageAll = isAdmin || role === 'editor';
+    const canManageAll = role === 'editor';
     const canWrite = canManageAll || role === 'writer';
 
     const postRef = useMemoFirebase(() => {
@@ -128,7 +127,7 @@ export default function EditPostPage() {
 
         toast({ title: 'Post updated!', description: 'Your changes have been saved.' });
         setIsSaving(false);
-        router.push('/admin/posts');
+        router.push('/writer/posts');
     };
     
     const handleAffiliateLinkChange = (index: number, field: 'text' | 'url', value: string) => {
@@ -146,11 +145,11 @@ export default function EditPostPage() {
     };
 
 
-    if (!isAdminLoading && !isRoleLoading && !canWrite) {
+    if (!isRoleLoading && !canWrite) {
         return null;
     }
 
-    if (isAdminLoading || isRoleLoading || isPostLoading || areCategoriesLoading) {
+    if (isRoleLoading || isPostLoading || areCategoriesLoading) {
         return (
             <div className="container mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-12 space-y-8">
                 <Skeleton className="h-10 w-36" />
@@ -214,10 +213,10 @@ export default function EditPostPage() {
         return (
             <div className="container mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-12">
                 <div className="mb-8">
-                    <Link href="/admin/posts" passHref>
+                    <Link href="/writer/posts" passHref>
                         <Button variant="ghost">
                             <ArrowLeft className="mr-2 h-4 w-4" />
-                            Back to Posts
+                            Back to My Posts
                         </Button>
                     </Link>
                 </div>
@@ -236,10 +235,10 @@ export default function EditPostPage() {
     return (
         <div className="container mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-12">
             <div className="mb-8">
-                <Link href="/admin/posts" passHref>
+                <Link href="/writer/posts" passHref>
                     <Button variant="ghost">
                         <ArrowLeft className="mr-2 h-4 w-4" />
-                        Back to Posts
+                        Back to My Posts
                     </Button>
                 </Link>
             </div>
@@ -338,6 +337,7 @@ export default function EditPostPage() {
                         <Label htmlFor="videoUrl" className="font-semibold">Video Embed URL</Label>
                         <Input id="videoUrl" value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="e.g., https://www.youtube.com/watch?v=..." className="mt-1" />
                     </div>
+
                     <div>
                         <Label htmlFor="tags" className="font-semibold">Tags</Label>
                         <Input
@@ -390,5 +390,3 @@ export default function EditPostPage() {
         </div>
     );
 }
-
-    

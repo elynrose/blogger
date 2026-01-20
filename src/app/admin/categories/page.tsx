@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { useCollection, useFirestore, useIsAdmin, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import {
@@ -32,13 +32,19 @@ interface Category {
 
 export default function AdminCategoriesPage() {
   const firestore = useFirestore();
+  const { isAdmin, isLoading: isAdminLoading } = useIsAdmin();
 
   const categoriesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || !isAdmin) return null;
     return query(collection(firestore, 'categories'), orderBy('name'));
-  }, [firestore]);
+  }, [firestore, isAdmin]);
 
-  const { data: categories, isLoading } = useCollection<Category>(categoriesQuery);
+  const { data: categories, isLoading: isCategoriesLoading } = useCollection<Category>(categoriesQuery);
+  const isLoading = isAdminLoading || isCategoriesLoading;
+
+  if (!isAdminLoading && !isAdmin) {
+    return null;
+  }
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);

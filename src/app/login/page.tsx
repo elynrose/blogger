@@ -6,7 +6,7 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
 } from 'firebase/auth';
-import { doc, serverTimestamp } from 'firebase/firestore';
+import { doc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -38,9 +38,22 @@ export default function LoginPage() {
     setIsLoading(true);
     setError(null);
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const credentials = await signInWithEmailAndPassword(auth, email, password);
+      const user = credentials.user;
+      let role = 'reader';
+      if (firestore && user) {
+        const userDocRef = doc(firestore, 'users', user.uid);
+        const userSnapshot = await getDoc(userDocRef);
+        if (userSnapshot.exists()) {
+          role = (userSnapshot.data()?.role as string) || 'reader';
+        }
+      }
       toast({ title: 'Login successful!' });
-      router.push('/admin');
+      if (role === 'admin') {
+        router.push('/admin');
+      } else {
+        router.push('/writer');
+      }
     } catch (err: any) {
       setError(err.message);
       toast({
@@ -74,6 +87,8 @@ export default function LoginPage() {
           username: user.email?.split('@')[0] || `user_${user.uid.substring(0, 5)}`,
           firstName: '',
           lastName: '',
+          role: 'writer',
+          blocked: false,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         },

@@ -16,4 +16,5 @@ export type BlogPost = {
   content: string; 
   videoUrl?: string;
   affiliateLinks?: AffiliateLink[];
+  tags?: string[];
 };

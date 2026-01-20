@@ -48,3 +48,6 @@ export * from './non-blocking-updates';
 export * from './non-blocking-login';
 export * from './errors';
 export * from './error-emitter';
+export { useIsAdmin } from './use-is-admin';
+export * from './use-user-role';
+

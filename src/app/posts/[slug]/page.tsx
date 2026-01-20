@@ -8,9 +8,12 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { CalendarDays } from 'lucide-react';
 import { VideoEmbed } from '@/components/blog/video-embed';
 import { AffiliateLink as AffiliateLinkComponent } from '@/components/blog/affiliate-link';
-import { doc, Timestamp } from 'firebase/firestore';
+import { doc, increment, runTransaction, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
+import { Button } from '@/components/ui/button';
+import { Share2 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 type PostDocument = {
     id: string;
@@ -29,50 +32,154 @@ type PostDocument = {
 const ParsedContent = ({ content, affiliateLinks }: { content: string; affiliateLinks?: AffiliateLink[] }) => {
     if (!content) return null;
 
-    const contentParagraphs = content.split('\n\n').map((paragraph, pIndex) => {
-        if (paragraph.trim()) {
-            return <p key={`p-${pIndex}`} className="mb-6 leading-relaxed text-lg">{paragraph}</p>
+    const links = affiliateLinks ?? [];
+    const tokenRegex = /\{\{affiliate(\d+)\}\}/g;
+
+    const renderParagraph = (paragraph: string, pIndex: number) => {
+        const nodes: React.ReactNode[] = [];
+        let lastIndex = 0;
+        let match: RegExpExecArray | null;
+        let segmentIndex = 0;
+
+        while ((match = tokenRegex.exec(paragraph)) !== null) {
+            const [token, indexStr] = match;
+            const matchIndex = match.index;
+
+            if (matchIndex > lastIndex) {
+                const text = paragraph.slice(lastIndex, matchIndex).trim();
+                if (text) {
+                    nodes.push(
+                        <p key={`p-${pIndex}-text-${segmentIndex++}`} className="mb-6 leading-relaxed text-lg">
+                            {text}
+                        </p>
+                    );
+                }
+            }
+
+            const linkIndex = Number(indexStr) - 1;
+            const link = links[linkIndex];
+            if (link?.url) {
+                nodes.push(
+                    <div key={`p-${pIndex}-link-${linkIndex}`} className="mb-6">
+                        <AffiliateLinkComponent href={link.url}>
+                            {link.text || link.url}
+                        </AffiliateLinkComponent>
+                    </div>
+                );
+            }
+
+            lastIndex = matchIndex + token.length;
         }
-        return null;
+
+        if (lastIndex < paragraph.length) {
+            const text = paragraph.slice(lastIndex).trim();
+            if (text) {
+                nodes.push(
+                    <p key={`p-${pIndex}-text-${segmentIndex++}`} className="mb-6 leading-relaxed text-lg">
+                        {text}
+                    </p>
+                );
+            }
+        }
+
+        if (!nodes.length) {
+            return null;
+        }
+
+        return (
+            <div key={`p-${pIndex}`} className="space-y-0">
+                {nodes}
+            </div>
+        );
+    };
+
+    const contentParagraphs = content.split('\n\n').map((paragraph, pIndex) => {
+        if (!paragraph.trim()) return null;
+        return renderParagraph(paragraph, pIndex);
     });
 
-    return (
-        <>
-            {contentParagraphs}
-            {affiliateLinks && affiliateLinks.length > 0 && (
-                 <div className="space-y-4 my-8">
-                    <h3 className="text-2xl font-headline font-bold">Recommended Tools</h3>
-                    {affiliateLinks.map((link, index) => (
-                        <AffiliateLinkComponent key={`link-${index}`} href={link.url}>
-                            {link.text}
-                        </AffiliateLinkComponent>
-                    ))}
-                </div>
-            )}
-        </>
-    );
+    return <>{contentParagraphs}</>;
 }
 
 export default function PostPage() {
     const params = useParams();
     const slug = Array.isArray(params.slug) ? params.slug[0] : params.slug;
+    const hasSlug = typeof slug === 'string' && slug.length > 0;
 
     const firestore = useFirestore();
 
     const postRef = useMemoFirebase(() => {
-        if (!firestore || !slug) return null;
+        if (!firestore || !hasSlug) return null;
         return doc(firestore, 'posts', slug);
-    }, [firestore, slug]);
+    }, [firestore, hasSlug, slug]);
 
     const { data: post, isLoading: isPostLoading, error: postError } = useDoc<PostDocument>(postRef);
+    const hasLoggedViewRef = useRef(false);
+    const { toast } = useToast();
 
     useEffect(() => {
         if (post?.title) {
-            document.title = `${post.title} | AISaaS Explorer`;
+            document.title = `${post.title} | Polygeno`;
         }
     }, [post?.title]);
 
-    if (isPostLoading) {
+    useEffect(() => {
+        const logView = async () => {
+            if (!firestore || !post?.id || hasLoggedViewRef.current) return;
+            hasLoggedViewRef.current = true;
+
+            try {
+                const ipResponse = await fetch('https://api.ipify.org?format=json');
+                if (!ipResponse.ok) return;
+                const ipData = await ipResponse.json();
+                const ipAddress = ipData?.ip;
+                if (!ipAddress) return;
+
+                const encoder = new TextEncoder();
+                const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(ipAddress));
+                const hashArray = Array.from(new Uint8Array(hashBuffer));
+                const ipHash = hashArray.map(byte => byte.toString(16).padStart(2, '0')).join('');
+
+                const statsRef = doc(firestore, 'post_views', post.id);
+                const ipRef = doc(firestore, 'post_views', post.id, 'ips', ipHash);
+
+                await runTransaction(firestore, async (transaction) => {
+                    const ipSnap = await transaction.get(ipRef);
+                    if (ipSnap.exists()) {
+                        transaction.update(statsRef, {
+                            totalViews: increment(1),
+                            updatedAt: serverTimestamp(),
+                        });
+                        transaction.update(ipRef, { lastSeenAt: serverTimestamp() });
+                        return;
+                    }
+
+                    transaction.set(ipRef, {
+                        createdAt: serverTimestamp(),
+                        lastSeenAt: serverTimestamp(),
+                    });
+                    transaction.set(
+                        statsRef,
+                        {
+                            totalViews: increment(1),
+                            uniqueViews: increment(1),
+                            updatedAt: serverTimestamp(),
+                        },
+                        { merge: true }
+                    );
+                });
+            } catch (error) {
+                console.warn('View tracking failed.', error);
+            }
+        };
+
+        logView();
+    }, [firestore, post?.id]);
+
+    const isAwaitingSnapshot = !!postRef && !post && !postError;
+    const isLoading = !hasSlug || isPostLoading || isAwaitingSnapshot;
+
+    if (isLoading) {
         return (
             <div className="container mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-12">
                 <article>
@@ -94,30 +201,60 @@ export default function PostPage() {
         )
     }
 
-    if (!post || postError) {
+    if (hasSlug && !isLoading && (postError || !post)) {
         notFound();
     }
     
-    const authorName = post.authorName || 'AISaaS Explorer';
+    const authorName = post.authorName || 'Polygeno';
     const date = post.publishDate ? post.publishDate.toDate() : post.createdAt.toDate();
+    const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
+
+    const handleShare = async () => {
+        if (!post) return;
+        const shareData = {
+            title: post.title,
+            text: post.title,
+            url: shareUrl,
+        };
+
+        try {
+            if (navigator.share) {
+                await navigator.share(shareData);
+                return;
+            }
+            await navigator.clipboard.writeText(shareUrl);
+            toast({ title: 'Link copied to clipboard.' });
+        } catch (error) {
+            console.warn('Share failed.', error);
+            toast({ variant: 'destructive', title: 'Unable to share this post.' });
+        }
+    };
 
     return (
         <article className="container mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-12">
         <header className="mb-8">
-            <h1 className="text-4xl md:text-5xl font-headline font-bold text-primary mb-4">{post.title}</h1>
-            <div className="flex items-center space-x-4 text-sm text-muted-foreground">
-            <div className="flex items-center gap-2">
-                <Avatar className="h-8 w-8">
-                {/* No author image in user doc */}
-                <AvatarImage src={'https://picsum.photos/seed/' + post.authorId + '/100/100'} alt={authorName} data-ai-hint="person portrait" />
-                <AvatarFallback>{authorName.charAt(0)}</AvatarFallback>
-                </Avatar>
-                <span>{authorName}</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-                <CalendarDays className="h-4 w-4" />
-                <span>{date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
-            </div>
+            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                <div>
+                    <h1 className="text-4xl md:text-5xl font-headline font-bold text-primary mb-4">{post.title}</h1>
+                    <div className="flex items-center space-x-4 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                        <Avatar className="h-8 w-8">
+                        {/* No author image in user doc */}
+                        <AvatarImage src={'https://picsum.photos/seed/' + post.authorId + '/100/100'} alt={authorName} data-ai-hint="person portrait" />
+                        <AvatarFallback>{authorName.charAt(0)}</AvatarFallback>
+                        </Avatar>
+                        <span>{authorName}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                        <CalendarDays className="h-4 w-4" />
+                        <span>{date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
+                    </div>
+                    </div>
+                </div>
+                <Button type="button" variant="outline" onClick={handleShare} className="shrink-0">
+                    <Share2 className="mr-2 h-4 w-4" />
+                    Share
+                </Button>
             </div>
         </header>
         

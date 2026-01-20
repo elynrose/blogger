@@ -48,12 +48,31 @@ service cloud.firestore {
 
     /**
      * Checks if the requesting user has an admin role.
-     * Admin status is determined by the existence of a document in the
-     * /roles_admin collection corresponding to the user's UID.
+     * Admin status is determined by the user's role field.
      */
     function isAdmin() {
-      return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+      return isSignedIn() && userRole() == 'admin';
     }
+
+    /**
+     * Reads the role value from the user's profile.
+     */
+    function userRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isWriter() {
+      return isSignedIn() && userRole() == 'writer';
+    }
+
+    function isEditor() {
+      return isSignedIn() && userRole() == 'editor';
+    }
+
+    function isAdminOrEditor() {
+      return isAdmin() || isEditor();
+    }
+
 
     /**
      * Verifies that a document exists before an update or delete operation.
@@ -66,22 +85,6 @@ service cloud.firestore {
     // ------------------------------------------------------------------------
     // Collection Rules
     // ------------------------------------------------------------------------
-
-    /**
-     * @description A special collection used by the client to verify if a user has admin
-     *              privileges without exposing any data. The client attempts to read a
-     *              document from this collection; if the read succeeds, the user is an admin.
-     *              The read will fail for non-admins due to security rules.
-     * @path /admin_check/{docId}
-     * @allow (get) An admin user successfully performs a 'get' to verify their status.
-     * @deny (get) A non-admin user's 'get' request is denied.
-     * @deny (any) All other operations (list, write) are denied for all users.
-     * @principle Provides a secure client-side mechanism to check for server-side roles without exposing role data.
-     */
-    match /admin_check/{docId} {
-      allow get: if isAdmin();
-      allow list, write: if false;
-    }
 
     /**
      * @description Manages administrative user profiles. Users can create and read their own
@@ -97,27 +100,12 @@ service cloud.firestore {
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
-      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow create: if isAdmin() || (isOwner(userId) && request.resource.data.id == userId);
       allow update: if isAdmin() && isExistingDoc() && request.resource.data.id == resource.data.id;
       allow delete: if isAdmin() && isExistingDoc();
     }
 
-    /**
-     * @description Defines admin roles via document existence. This collection is locked down
-     *              from all client-side access to prevent tampering. Roles must be assigned
-     *              through the Firebase Console or a trusted backend server.
-     * @path /roles_admin/{userId}
-     * @allow (any) No client operation is ever permitted.
-     * @deny (any) Any user, including an admin, attempting to read or write this collection.
-     * @principle Secures role management by preventing any and all client-side modifications or reads.
-     */
-    match /roles_admin/{userId} {
-      allow get: if false;
-      allow list: if false;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
-    }
+    // /roles_admin no longer used; role is stored on user profiles.
 
     /**
      * @description Stores categories for blog posts. Full read and write access is restricted
@@ -130,11 +118,12 @@ service cloud.firestore {
      * @principle Enforces strict role-based access control for content taxonomy.
      */
     match /categories/{categoryId} {
-      allow get: if isAdmin();
-      allow list: if isAdmin();
-      allow create: if isAdmin();
-      allow update: if isAdmin() && isExistingDoc();
-      allow delete: if isAdmin() && isExistingDoc();
+      // Any signed-in user can read categories (needed for post creation).
+      allow get, list: if isSignedIn();
+      // Only editors/admins manage categories.
+      allow create: if isAdminOrEditor();
+      allow update: if isAdminOrEditor() && isExistingDoc();
+      allow delete: if isAdminOrEditor() && isExistingDoc();
     }
 
     /**
@@ -148,17 +137,58 @@ service cloud.firestore {
      * @principle Public read access for published content, role-based access for mutations.
      */
     match /posts/{postId} {
-      // --- Admin Access ---
-      // Admins have full read and write access to all posts.
-      allow read, write: if isAdmin();
+      // --- Read Access ---
+      // Admins and editors can read any post.
+      allow read: if isAdminOrEditor();
+      // Any user can read published posts.
+      allow read: if resource.data.status == 'published';
+      // Any signed-in user can read their own posts (including drafts).
+      allow read: if isSignedIn() && resource.data.authorId == request.auth.uid;
 
-      // --- Public Access ---
-      // Any user can GET a single document if its status is 'published'.
-      allow get: if resource.data.status == 'published';
-      
-      // Any user can LIST posts. The client query must filter by status,
-      // otherwise the query will fail with a permission error.
-      allow list: if true;
+
+      // --- Create Access ---
+      // Admins and editors can create drafts or publish immediately.
+      allow create: if isAdminOrEditor() &&
+        request.resource.data.authorId == request.auth.uid &&
+        (request.resource.data.status == 'draft' || request.resource.data.status == 'published');
+      // Writers can only create drafts for themselves.
+      allow create: if isWriter() &&
+        request.resource.data.authorId == request.auth.uid &&
+        request.resource.data.status == 'draft';
+
+      // --- Update Access ---
+      // Admins and editors can update any post, but cannot change authorId.
+      allow update: if isAdminOrEditor() &&
+        request.resource.data.authorId == resource.data.authorId;
+      // Writers can only update their own drafts and keep status as draft.
+      allow update: if isWriter() &&
+        request.resource.data.authorId == resource.data.authorId &&
+        resource.data.authorId == request.auth.uid &&
+        resource.data.status == 'draft' &&
+        request.resource.data.status == 'draft';
+
+      // --- Delete Access ---
+      allow delete: if isAdmin();
+    }
+
+    /**
+     * @description Tracks per-post view statistics and per-IP view entries.
+     * @path /post_views/{postId}
+     * @allow (read) Admins can read stats.
+     * @allow (create/update) Public can increment stats (best-effort analytics).
+     */
+    match /post_views/{postId} {
+      allow get, list: if isAdminOrEditor() || (isSignedIn() && get(/databases/$(database)/documents/posts/$(postId)).data.authorId == request.auth.uid);
+      allow create, update: if
+        request.resource.data.keys().hasOnly(['totalViews', 'uniqueViews', 'updatedAt']) &&
+        request.resource.data.totalViews is int &&
+        ( !('uniqueViews' in request.resource.data) || request.resource.data.uniqueViews is int );
+
+      match /ips/{ipId} {
+        allow get, list: if isAdminOrEditor() || (isSignedIn() && get(/databases/$(database)/documents/posts/$(postId)).data.authorId == request.auth.uid);
+        allow create, update: if
+          request.resource.data.keys().hasOnly(['createdAt', 'lastSeenAt']);
+      }
     }
   }
 }

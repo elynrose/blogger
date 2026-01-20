@@ -11,7 +11,7 @@ import { Bot, Loader, Sparkles, Calendar as CalendarIcon, X as XIcon } from 'luc
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '../ui/skeleton';
 import { Label } from '../ui/label';
-import { useFirestore, useUser, addDocumentNonBlocking, useCollection, useMemoFirebase, useDoc } from '@/firebase';
+import { useFirestore, useUser, addDocumentNonBlocking, useCollection, useMemoFirebase, useDoc, useUserRole } from '@/firebase';
 import { collection, serverTimestamp, Timestamp, doc } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
@@ -28,6 +28,12 @@ import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 
 type AffiliateLink = { text: string; url: string; };
+
+const parseTags = (value: string) =>
+  value
+    .split(',')
+    .map(tag => tag.trim())
+    .filter(Boolean);
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -56,13 +62,17 @@ export function PostGeneratorTool() {
   const { user } = useUser();
   const firestore = useFirestore();
   const router = useRouter();
+  const { role, isLoading: isRoleLoading } = useUserRole();
 
   const { data: userProfile, isLoading: isUserProfileLoading } = useDoc(useMemoFirebase(() => (user && firestore ? doc(firestore, 'users', user.uid) : null), [firestore, user]));
 
+  const canManageAll = role === 'editor';
+  const canWrite = canManageAll || role === 'writer';
+
   const categoriesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || !canWrite) return null;
     return collection(firestore, 'categories');
-  }, [firestore]);
+  }, [firestore, canWrite]);
   const { data: categories, isLoading: areCategoriesLoading } = useCollection(categoriesQuery);
 
   const [generatedTitle, setGeneratedTitle] = useState('');
@@ -75,6 +85,7 @@ export function PostGeneratorTool() {
   const [publishDate, setPublishDate] = useState<Date | undefined>();
   const [videoUrl, setVideoUrl] = useState('');
   const [affiliateLinks, setAffiliateLinks] = useState<AffiliateLink[]>([]);
+  const [tagsInput, setTagsInput] = useState('');
 
   useEffect(() => {
     if (state?.message === 'Success' && state.generatedPost) {
@@ -93,6 +104,12 @@ export function PostGeneratorTool() {
         });
     }
   }, [state, toast]);
+
+  useEffect(() => {
+    if (role === 'writer') {
+      setStatus('draft');
+    }
+  }, [role]);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -115,7 +132,11 @@ export function PostGeneratorTool() {
   };
 
   const handleSavePost = async () => {
-    if (!user || !firestore || !generatedTitle || !generatedContent || isUserProfileLoading) {
+    if (!canWrite) {
+        toast({ variant: 'destructive', title: 'Only writers and editors can create posts.' });
+        return;
+    }
+    if (!user || !firestore || !generatedTitle || !generatedContent || isUserProfileLoading || isRoleLoading) {
         toast({
             variant: 'destructive',
             title: 'Error',
@@ -131,7 +152,9 @@ export function PostGeneratorTool() {
     setIsSaving(true);
 
     const postsCollection = collection(firestore, 'posts');
-    const authorName = (userProfile ? `${userProfile.firstName || ''} ${userProfile.lastName || userProfile.username}`.trim() : user?.email) || 'AISaaS Explorer';
+    const authorName = (userProfile ? `${userProfile.firstName || ''} ${userProfile.lastName || userProfile.username}`.trim() : user?.email) || 'Polygeno';
+
+    const tags = parseTags(tagsInput);
 
     addDocumentNonBlocking(postsCollection, {
         title: generatedTitle,
@@ -144,6 +167,7 @@ export function PostGeneratorTool() {
         publishDate: publishDate ? Timestamp.fromDate(publishDate) : null,
         videoUrl,
         affiliateLinks,
+        tags,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
     }).then(() => {
@@ -190,6 +214,11 @@ export function PostGeneratorTool() {
           <CardDescription>
             Provide a topic and a brief summary, and the AI will write a blog post for you.
           </CardDescription>
+          {!isRoleLoading && !canWrite && (
+            <p className="text-sm text-destructive">
+              Your account does not have permission to create posts.
+            </p>
+          )}
         </CardHeader>
         <form ref={formRef} action={formAction}>
           <CardContent className="space-y-4">
@@ -264,7 +293,11 @@ export function PostGeneratorTool() {
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                         <Label htmlFor="status" className="font-semibold">Status</Label>
-                        <Select onValueChange={(value: 'draft' | 'published') => setStatus(value)} value={status}>
+                        <Select
+                          onValueChange={(value: 'draft' | 'published') => setStatus(value)}
+                          value={status}
+                          disabled={!canManageAll}
+                        >
                             <SelectTrigger className="mt-1">
                                 <SelectValue placeholder="Select status" />
                             </SelectTrigger>
@@ -288,6 +321,19 @@ export function PostGeneratorTool() {
                             </SelectContent>
                         </Select>
                     </div>
+                </div>
+                <div>
+                    <Label htmlFor="tags" className="font-semibold">Tags</Label>
+                    <Input
+                        id="tags"
+                        value={tagsInput}
+                        onChange={(e) => setTagsInput(e.target.value)}
+                        placeholder="e.g., ai, saas, automation"
+                        className="mt-1"
+                    />
+                    <p className="text-sm text-muted-foreground mt-1">
+                        Separate tags with commas.
+                    </p>
                 </div>
 
                  <div>
