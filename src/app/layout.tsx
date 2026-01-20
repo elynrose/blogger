@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 import './globals.css';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
@@ -25,7 +26,9 @@ export default function RootLayout({
       <body className="font-body bg-background text-foreground antialiased">
         <FirebaseClientProvider>
           <div className="flex min-h-screen flex-col">
-            <Header />
+            <Suspense fallback={<div className="h-14" />}>
+              <Header />
+            </Suspense>
             <main className="flex-grow">{children}</main>
             <Footer />
           </div>
