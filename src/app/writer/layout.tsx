@@ -18,7 +18,7 @@ export default function WriterLayout({ children }: { children: React.ReactNode }
     }
   }, [user, isUserLoading, router]);
 
-  const canAccessWriterArea = role === 'writer' || role === 'editor';
+  const canAccessWriterArea = role === 'writer' || role === 'editor' || role === 'admin';
   const isLoading = isUserLoading || isRoleLoading;
 
   if (isLoading) {

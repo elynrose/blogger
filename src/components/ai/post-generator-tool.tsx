@@ -66,7 +66,7 @@ export function PostGeneratorTool() {
 
   const { data: userProfile, isLoading: isUserProfileLoading } = useDoc(useMemoFirebase(() => (user && firestore ? doc(firestore, 'users', user.uid) : null), [firestore, user]));
 
-  const canManageAll = role === 'editor';
+  const canManageAll = role === 'editor' || role === 'admin';
   const canWrite = canManageAll || role === 'writer';
 
   const categoriesQuery = useMemoFirebase(() => {
@@ -175,7 +175,8 @@ export function PostGeneratorTool() {
             title: 'Post Saved!',
             description: 'Your new post has been saved successfully.',
         });
-        router.push('/admin/posts');
+        const destination = role === 'admin' ? '/admin/posts' : '/writer/posts';
+        router.push(destination);
     }).catch((e) => {
         console.error('Save Post Error:', e);
         toast({

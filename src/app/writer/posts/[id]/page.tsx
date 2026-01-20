@@ -80,7 +80,7 @@ export default function WriterPostDetailPage() {
   const { toast } = useToast();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
-  const canManageAll = role === 'editor';
+  const canManageAll = role === 'editor' || role === 'admin';
   const canWrite = canManageAll || role === 'writer';
 
   const postRef = useMemoFirebase(() => {

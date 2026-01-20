@@ -27,6 +27,12 @@ export default function AdminLayout({
   const canAccessAdmin = isAdmin;
 
 
+  useEffect(() => {
+    if (!isUserLoading && !isAdminLoading && user && !canAccessAdmin) {
+      router.replace('/writer');
+    }
+  }, [canAccessAdmin, isAdminLoading, isUserLoading, router, user]);
+
   if (isUserLoading || isAdminLoading) {
     return (
       <div className="flex h-screen items-center justify-center">
@@ -44,12 +50,6 @@ export default function AdminLayout({
         </div>
     );
   }
-
-  useEffect(() => {
-    if (!isUserLoading && !isAdminLoading && user && !canAccessAdmin) {
-      router.replace('/writer');
-    }
-  }, [canAccessAdmin, isAdminLoading, isUserLoading, router, user]);
 
   if (!canAccessAdmin) {
     return (

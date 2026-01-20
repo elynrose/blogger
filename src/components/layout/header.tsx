@@ -18,8 +18,8 @@ import {
 export function Header() {
   const { user } = useUser();
   const auth = useAuth();
-  const { role } = useUserRole();
-  const { isAdmin } = useIsAdmin();
+  const { role, isLoading: isRoleLoading } = useUserRole();
+  const { isAdmin, isLoading: isAdminLoading } = useIsAdmin();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -79,13 +79,16 @@ export function Header() {
           <Link href="/recommendations" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
             Recommendations
           </Link>
-          {(role === 'writer' || role === 'editor' || isAdmin) && (
-            <Link href="/writer" className="flex items-center text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
+          {!isRoleLoading && (role === 'writer' || role === 'editor' || isAdmin) && (
+            <Link
+              href={isAdmin ? "/admin/posts" : "/writer"}
+              className="flex items-center text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
+            >
               <PenSquare className="mr-1 h-4 w-4" />
               My Posts
             </Link>
           )}
-          {user && isAdmin && (
+          {user && !isAdminLoading && isAdmin && (
             <Link href="/admin" className="flex items-center text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
               <UserCog className="mr-1 h-4 w-4" />
               Admin

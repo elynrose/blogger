@@ -70,17 +70,21 @@ export default function WriterPostsPage() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [postToDelete, setPostToDelete] = useState<Post | null>(null);
 
-  const canManageAll = role === 'editor';
+  const canManageAll = role === 'editor' || role === 'admin';
   const canWrite = canManageAll || role === 'writer';
 
   const postsQuery = useMemoFirebase(() => {
-    if (!firestore || !user || !canWrite) return null;
+    if (!firestore || !canWrite) return null;
+    if (canManageAll) {
+      return query(collection(firestore, 'posts'), orderBy('createdAt', 'desc'));
+    }
+    if (!user) return null;
     return query(
       collection(firestore, 'posts'),
       where('authorId', '==', user.uid),
       orderBy('createdAt', 'desc')
     );
-  }, [firestore, user, canWrite]);
+  }, [firestore, user, canWrite, canManageAll]);
 
   const { data: posts, isLoading: isPostsLoading } = useCollection<Post>(postsQuery);
 

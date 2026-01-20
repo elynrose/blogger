@@ -45,7 +45,7 @@ export default function WriterEditPostPage() {
     const { user } = useUser();
     const { toast } = useToast();
 
-    const canManageAll = role === 'editor';
+    const canManageAll = role === 'editor' || role === 'admin';
     const canWrite = canManageAll || role === 'writer';
 
     const postRef = useMemoFirebase(() => {

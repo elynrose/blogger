@@ -21,6 +21,7 @@ type WithId<T> = T & { id: string };
 export interface UseDocResult<T> {
   data: WithId<T> | null; // Document data with ID, or null.
   isLoading: boolean;       // True if loading.
+  hasLoaded: boolean;       // True once a snapshot or error has been received.
   error: FirestoreError | Error | null; // Error object, or null.
 }
 
@@ -48,6 +49,7 @@ export function useDoc<T = any>(
 
   const [data, setData] = useState<StateDataType>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [hasLoaded, setHasLoaded] = useState<boolean>(false);
   const [error, setError] = useState<FirestoreError | Error | null>(null);
   const preventGlobalError = options?.preventGlobalError;
 
@@ -55,6 +57,7 @@ export function useDoc<T = any>(
     if (!memoizedDocRef) {
       setData(null);
       setIsLoading(false);
+      setHasLoaded(false);
       setError(null);
       return;
     }
@@ -74,6 +77,7 @@ export function useDoc<T = any>(
         }
         setError(null); // Clear any previous error on successful snapshot (even if doc doesn't exist)
         setIsLoading(false);
+        setHasLoaded(true);
       },
       (error: FirestoreError) => {
         const contextualError = new FirestorePermissionError({
@@ -84,6 +88,7 @@ export function useDoc<T = any>(
         setError(contextualError)
         setData(null)
         setIsLoading(false)
+        setHasLoaded(true)
 
         if (!preventGlobalError) {
           // trigger global error propagation
@@ -95,5 +100,5 @@ export function useDoc<T = any>(
     return () => unsubscribe();
   }, [memoizedDocRef, preventGlobalError]); // Re-run if the memoizedDocRef or preventGlobalError option changes.
 
-  return { data, isLoading, error };
+  return { data, isLoading, hasLoaded, error };
 }

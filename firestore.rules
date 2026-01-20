@@ -56,9 +56,12 @@ service cloud.firestore {
 
     /**
      * Reads the role value from the user's profile.
+     * Defaults to 'reader' if no profile exists yet.
      */
     function userRole() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+        : 'reader';
     }
 
     function isWriter() {

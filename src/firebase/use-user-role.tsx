@@ -15,12 +15,12 @@ export function useUserRole() {
     return doc(firestore, 'users', user.uid);
   }, [firestore, user]);
 
-  const { data: userProfile, isLoading: isProfileLoading } = useDoc<{
+  const { data: userProfile, isLoading: isProfileLoading, hasLoaded } = useDoc<{
     role?: UserRole;
   }>(userDocRef, { preventGlobalError: true });
 
   const role = userProfile?.role ?? 'reader';
-  const isLoading = isUserLoading || isProfileLoading;
+  const isLoading = isUserLoading || (user ? !hasLoaded : false) || isProfileLoading;
 
   return { role, isLoading };
 }
